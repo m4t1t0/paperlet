@@ -1,4 +1,5 @@
 """Notifications domain model."""
+
 from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
@@ -9,6 +10,7 @@ from uuid import UUID
 @dataclass
 class EmailRecipient:
     """Email recipient with allocation status."""
+
     user_id: UUID
     email: str
     has_allocation: bool
@@ -18,6 +20,7 @@ class EmailRecipient:
 @dataclass
 class SendResult:
     """Result of email send attempt."""
+
     recipient_id: UUID
     success: bool
     error: Optional[str] = None
@@ -27,6 +30,7 @@ class SendResult:
 @dataclass
 class EmailBatch:
     """Batch of emails to send."""
+
     batch_id: UUID
     post_id: UUID
     recipients: list[EmailRecipient]

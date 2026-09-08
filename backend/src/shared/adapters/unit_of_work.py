@@ -1,8 +1,8 @@
 """SQLAlchemy Unit of Work implementation."""
+
 from __future__ import annotations
 from contextlib import AbstractContextManager
 from typing import Any
-from uuid import UUID
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
@@ -33,11 +33,13 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork, AbstractContextManager):
 
         # Enable foreign keys for SQLite
         if is_sqlite:
+
             @event.listens_for(engine, "connect")
             def set_sqlite_pragma(dbapi_connection, connection_record):
                 cursor = dbapi_connection.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
+
         return sessionmaker(bind=engine, expire_on_commit=False)
 
     def __enter__(self) -> SqlAlchemyUnitOfWork:
@@ -53,7 +55,9 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork, AbstractContextManager):
     @property
     def session(self) -> Session:
         if self._session is None:
-            raise RuntimeError("Unit of Work not started. Use 'with uow:' context manager.")
+            raise RuntimeError(
+                "Unit of Work not started. Use 'with uow:' context manager."
+            )
         return self._session
 
     def commit(self) -> None:

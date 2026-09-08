@@ -1,9 +1,22 @@
 """Notifications context exports."""
-from backend.src.notifications.adapters.email import EmailRecipient, EmailTemplateRenderer, NotificationSender, SendResult
-from backend.src.notifications.adapters.stub_sender import LoggingEmailSender, StubEmailSender
-from backend.src.notifications.domain.model import EmailBatch, EmailRecipient
+
+from backend.src.notifications.adapters.email import (
+    EmailRecipient,
+    EmailTemplateRenderer,
+    NotificationSender,
+    SendResult,
+)
+from backend.src.notifications.adapters.stub_sender import (
+    LoggingEmailSender,
+    StubEmailSender,
+)
+from backend.src.notifications.domain.model import EmailBatch
 from backend.src.notifications.service import NotificationService
-from backend.src.notifications.tasks import celery_app, process_scheduled_posts, send_post_published_emails
+from backend.src.notifications.tasks import (
+    celery_app,
+    process_scheduled_posts,
+    send_post_published_emails,
+)
 
 __all__ = [
     "EmailRecipient",

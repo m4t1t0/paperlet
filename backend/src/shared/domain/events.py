@@ -1,7 +1,7 @@
 """Base domain events and event handling."""
+
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Generic, TypeVar
 from uuid import UUID, uuid4

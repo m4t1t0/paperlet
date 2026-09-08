@@ -1,4 +1,5 @@
 """Payment gateway adapter abstraction."""
+
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -8,6 +9,7 @@ from typing import Optional
 @dataclass
 class SubscriptionResult:
     """Result of subscription creation."""
+
     subscription_id: str
     status: str
     client_secret: Optional[str] = None
@@ -16,6 +18,7 @@ class SubscriptionResult:
 @dataclass
 class SubscriptionStatusResult:
     """Result of subscription status check."""
+
     subscription_id: str
     status: str
     current_period_end: Optional[int] = None

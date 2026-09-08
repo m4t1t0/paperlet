@@ -1,4 +1,5 @@
 """Publishing domain model."""
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -13,6 +14,7 @@ from backend.src.shared.domain.events import AggregateRoot, DomainEvent
 
 class PostStatus(str, Enum):
     """Post status."""
+
     DRAFT = "draft"
     SCHEDULED = "scheduled"
     PUBLISHED = "published"
@@ -21,6 +23,7 @@ class PostStatus(str, Enum):
 
 class PostPublished(DomainEvent):
     """Event emitted when a post is published."""
+
     post_id: UUID
     writer_id: UUID
     published_at: datetime
@@ -28,6 +31,7 @@ class PostPublished(DomainEvent):
 
 class PostScheduled(DomainEvent):
     """Event emitted when a post is scheduled."""
+
     post_id: UUID
     writer_id: UUID
     scheduled_for: datetime
@@ -35,6 +39,7 @@ class PostScheduled(DomainEvent):
 
 class PostCancelled(DomainEvent):
     """Event emitted when a scheduled post is cancelled."""
+
     post_id: UUID
     writer_id: UUID
 
@@ -42,6 +47,7 @@ class PostCancelled(DomainEvent):
 @dataclass
 class Post(AggregateRoot):
     """Post aggregate - newsletter with preview and subscriber content."""
+
     id: UUID = field(default_factory=uuid4)
     writer_id: UUID = field(default_factory=uuid4)
     title: str = ""
@@ -101,13 +107,15 @@ class Post(AggregateRoot):
             status=PostStatus.SCHEDULED,
             scheduled_for=scheduled_for,
         )
-        post.add_event(PostScheduled(
-            aggregate_id=post.id,
-            aggregate_type="Post",
-            post_id=post.id,
-            writer_id=writer_id,
-            scheduled_for=scheduled_for,
-        ))
+        post.add_event(
+            PostScheduled(
+                aggregate_id=post.id,
+                aggregate_type="Post",
+                post_id=post.id,
+                writer_id=writer_id,
+                scheduled_for=scheduled_for,
+            )
+        )
         return post
 
     def publish(self) -> None:
@@ -122,13 +130,15 @@ class Post(AggregateRoot):
         self.published_at = datetime.utcnow()
         self.updated_at = self.published_at
 
-        self.add_event(PostPublished(
-            aggregate_id=self.id,
-            aggregate_type="Post",
-            post_id=self.id,
-            writer_id=self.writer_id,
-            published_at=self.published_at,
-        ))
+        self.add_event(
+            PostPublished(
+                aggregate_id=self.id,
+                aggregate_type="Post",
+                post_id=self.id,
+                writer_id=self.writer_id,
+                published_at=self.published_at,
+            )
+        )
 
     def schedule(self, scheduled_for: datetime) -> None:
         """Schedule the post for future publication."""
@@ -142,13 +152,15 @@ class Post(AggregateRoot):
         self.scheduled_for = scheduled_for
         self.updated_at = datetime.utcnow()
 
-        self.add_event(PostScheduled(
-            aggregate_id=self.id,
-            aggregate_type="Post",
-            post_id=self.id,
-            writer_id=self.writer_id,
-            scheduled_for=scheduled_for,
-        ))
+        self.add_event(
+            PostScheduled(
+                aggregate_id=self.id,
+                aggregate_type="Post",
+                post_id=self.id,
+                writer_id=self.writer_id,
+                scheduled_for=scheduled_for,
+            )
+        )
 
     def cancel(self) -> None:
         """Cancel a scheduled post."""
@@ -158,12 +170,14 @@ class Post(AggregateRoot):
         self.status = PostStatus.CANCELLED
         self.updated_at = datetime.utcnow()
 
-        self.add_event(PostCancelled(
-            aggregate_id=self.id,
-            aggregate_type="Post",
-            post_id=self.id,
-            writer_id=self.writer_id,
-        ))
+        self.add_event(
+            PostCancelled(
+                aggregate_id=self.id,
+                aggregate_type="Post",
+                post_id=self.id,
+                writer_id=self.writer_id,
+            )
+        )
 
     def update_content(
         self,
@@ -186,10 +200,14 @@ class Post(AggregateRoot):
             self.subscriber_content = subscriber_content
         self.updated_at = datetime.utcnow()
 
-    def get_content_for_reader(self, has_allocation: bool, reader_id: UUID | None = None) -> dict:
+    def get_content_for_reader(
+        self, has_allocation: bool, reader_id: UUID | None = None
+    ) -> dict:
         """Get post content based on reader's allocation status."""
         # Handle both enum and string status (from DB)
-        status_value = self.status.value if hasattr(self.status, 'value') else self.status
+        status_value = (
+            self.status.value if hasattr(self.status, "value") else self.status
+        )
         # Writers can see their own subscriber content
         is_writer = reader_id is not None and reader_id == self.writer_id
         content = {
@@ -198,7 +216,9 @@ class Post(AggregateRoot):
             "title": self.title,
             "preview_content": self.preview_content,
             "status": status_value,
-            "published_at": self.published_at.isoformat() if self.published_at else None,
+            "published_at": self.published_at.isoformat()
+            if self.published_at
+            else None,
             "created_at": self.created_at.isoformat(),
         }
         if has_allocation or is_writer:

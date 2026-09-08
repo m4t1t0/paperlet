@@ -1,4 +1,5 @@
 """Publishing repository interface."""
+
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -21,12 +22,16 @@ class PostRepository(ABC):
         ...
 
     @abstractmethod
-    def get_by_writer(self, writer_id: UUID, status: Optional[PostStatus] = None) -> list[Post]:
+    def get_by_writer(
+        self, writer_id: UUID, status: Optional[PostStatus] = None
+    ) -> list[Post]:
         """Get posts by writer."""
         ...
 
     @abstractmethod
-    def get_published_for_feed(self, writer_ids: list[UUID], limit: int = 20, cursor: Optional[str] = None) -> list[Post]:
+    def get_published_for_feed(
+        self, writer_ids: list[UUID], limit: int = 20, cursor: Optional[str] = None
+    ) -> list[Post]:
         """Get published posts for reader feed."""
         ...
 

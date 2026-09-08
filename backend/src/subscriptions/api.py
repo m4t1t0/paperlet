@@ -1,11 +1,10 @@
 """Subscriptions API routes."""
+
 from __future__ import annotations
 from flask import Blueprint, jsonify, request
-from werkzeug.exceptions import BadRequest, NotFound, Unauthorized
+from werkzeug.exceptions import BadRequest, Unauthorized
 
-from backend.src.identity.domain.model import User
 from backend.src.identity.service import JwtService
-from backend.src.shared.config import get_settings
 from backend.src.shared.service_layer.messagebus import MessageBus
 from backend.src.subscriptions.commands import (
     AssignAllocationCommand,
@@ -14,14 +13,16 @@ from backend.src.subscriptions.commands import (
     SubscribeCommand,
     SwapAllocationCommand,
 )
-from backend.src.subscriptions.domain.model import SubscriptionStatus
 
-subscriptions_bp = Blueprint("subscriptions", __name__, url_prefix="/api/v1/subscriptions")
+subscriptions_bp = Blueprint(
+    "subscriptions", __name__, url_prefix="/api/v1/subscriptions"
+)
 
 
 def get_bus() -> MessageBus:
     """Get message bus from app context."""
     from flask import current_app
+
     return current_app.message_bus
 
 
@@ -38,7 +39,9 @@ def get_current_user() -> dict:
     except ValueError as e:
         raise Unauthorized(str(e))
 
-    from backend.src.identity.adapters.sqlalchemy_repository import SqlAlchemyUserRepository
+    from backend.src.identity.adapters.sqlalchemy_repository import (
+        SqlAlchemyUserRepository,
+    )
     from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
 
     with SqlAlchemyUnitOfWork() as uow:
@@ -56,7 +59,9 @@ def subscribe() -> tuple:
     data = request.get_json() or {}
     payment_method_id = data.get("payment_method_id", "pm_mock_default")
 
-    command = SubscribeCommand(reader_id=user["id"], payment_method_id=payment_method_id)
+    command = SubscribeCommand(
+        reader_id=user["id"], payment_method_id=payment_method_id
+    )
     bus = get_bus()
     subscription = bus.handle(command)
 
@@ -86,6 +91,7 @@ def assign_allocation() -> tuple:
         raise BadRequest("writer_id is required")
 
     from uuid import UUID
+
     try:
         writer_id = UUID(writer_id_str)
     except ValueError:
@@ -110,6 +116,7 @@ def swap_allocation() -> tuple:
         raise BadRequest("current_writer_id and new_writer_id are required")
 
     from uuid import UUID
+
     try:
         current_writer_id = UUID(current_writer_id_str)
         new_writer_id = UUID(new_writer_id_str)
@@ -136,6 +143,7 @@ def release_allocation(writer_id: str) -> tuple:
     user = get_current_user()
 
     from uuid import UUID
+
     try:
         writer_uuid = UUID(writer_id)
     except ValueError:

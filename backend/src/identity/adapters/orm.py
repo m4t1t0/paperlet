@@ -1,13 +1,13 @@
 """Identity SQLAlchemy models."""
+
 from __future__ import annotations
 from datetime import datetime
-import json
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, String, Table, Text
+from sqlalchemy import Column, DateTime, String, Table, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
-from backend.src.identity.domain.model import User, UserRole
+from backend.src.identity.domain.model import User, Session
 from backend.src.shared.database import metadata
 
 
@@ -18,38 +18,43 @@ users_table = Table(
     Column("email", String(255), unique=True, nullable=False, index=True),
     Column("password_hash", Text, nullable=False),
     Column("created_at", DateTime, default=datetime.utcnow, nullable=False),
-    Column("updated_at", DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False),
-    Column("is_active", String(10), default="true", nullable=False),
+    Column(
+        "updated_at",
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    ),
+    Column("is_active", Boolean, default=True, nullable=False),
     Column("roles", Text, default="[]", nullable=False),  # JSON array of role strings
 )
 
-
-def _roles_to_json(roles: set[UserRole]) -> str:
-    return json.dumps([r.value for r in roles])
-
-
-def _json_to_roles(json_str: str) -> set[UserRole]:
-    if not json_str:
-        return {UserRole.READER}
-    try:
-        role_values = json.loads(json_str)
-        return {UserRole(r) for r in role_values}
-    except (json.JSONDecodeError, ValueError):
-        return {UserRole.READER}
+sessions_table = Table(
+    "sessions",
+    metadata,
+    Column("id", PG_UUID(as_uuid=True), primary_key=True, default=uuid4),
+    Column("user_id", PG_UUID(as_uuid=True), nullable=False, index=True),
+    Column("refresh_token_hash", Text, nullable=False),
+    Column("expires_at", DateTime, nullable=False),
+    Column("revoked_at", DateTime, nullable=True),
+    Column("user_agent", Text, nullable=True),
+    Column("ip", String(45), nullable=True),
+    Column("created_at", DateTime, default=datetime.utcnow, nullable=False),
+)
 
 
 def start_mappers() -> None:
     """Start SQLAlchemy mappers."""
     from backend.src.shared.database import mapper_registry
     from sqlalchemy.orm import class_mapper
-    
+
     # Check if already mapped
     try:
         class_mapper(User)
         return  # Already mapped
     except Exception:
         pass  # Not mapped yet
-    
+
     mapper_registry.map_imperatively(
         User,
         users_table,
@@ -57,6 +62,7 @@ def start_mappers() -> None:
             "_roles_json": users_table.c.roles,
         },
     )
+    mapper_registry.map_imperatively(Session, sessions_table)
 
 
 def create_tables(engine) -> None:

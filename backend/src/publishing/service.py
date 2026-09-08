@@ -1,7 +1,6 @@
 """Publishing service layer."""
+
 from __future__ import annotations
-from typing import Optional
-from uuid import UUID
 
 from backend.src.publishing.adapters.repository import PostRepository
 from backend.src.publishing.commands import (
@@ -119,7 +118,11 @@ class PublishingService:
         if command.reader_id:
             subscription = self._subscription_repo.get_by_reader(command.reader_id)
             if subscription:
-                sub_status = subscription.status.value if hasattr(subscription.status, 'value') else subscription.status
+                sub_status = (
+                    subscription.status.value
+                    if hasattr(subscription.status, "value")
+                    else subscription.status
+                )
                 if sub_status == "active":
                     has_allocation = subscription.is_writer_allocated(post.writer_id)
 
@@ -135,7 +138,11 @@ class PublishingService:
         subscription = self._subscription_repo.get_by_reader(command.reader_id)
         if not subscription:
             return {"posts": [], "next_cursor": None}
-        sub_status = subscription.status.value if hasattr(subscription.status, 'value') else subscription.status
+        sub_status = (
+            subscription.status.value
+            if hasattr(subscription.status, "value")
+            else subscription.status
+        )
         if sub_status != "active":
             return {"posts": [], "next_cursor": None}
 
@@ -143,22 +150,28 @@ class PublishingService:
         if not writer_ids:
             return {"posts": [], "next_cursor": None}
 
-        posts = self._post_repo.get_published_for_feed(writer_ids, command.limit, command.cursor)
+        posts = self._post_repo.get_published_for_feed(
+            writer_ids, command.limit, command.cursor
+        )
 
         # Check if there are more posts
         has_more = len(posts) > command.limit
         if has_more:
-            posts = posts[:command.limit]
+            posts = posts[: command.limit]
 
         # Build response with paywall applied
         post_data = []
         for post in posts:
             has_allocation = subscription.is_writer_allocated(post.writer_id)
-            post_data.append(post.get_content_for_reader(has_allocation, command.reader_id))
+            post_data.append(
+                post.get_content_for_reader(has_allocation, command.reader_id)
+            )
 
         next_cursor = None
         if has_more and posts:
-            next_cursor = posts[-1].published_at.isoformat() if posts[-1].published_at else None
+            next_cursor = (
+                posts[-1].published_at.isoformat() if posts[-1].published_at else None
+            )
 
         return {"posts": post_data, "next_cursor": next_cursor}
 

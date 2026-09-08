@@ -1,11 +1,11 @@
 """Invoke tasks for Paperlet."""
+
 from __future__ import annotations
 import os
 import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 from invoke import task
 
@@ -25,6 +25,7 @@ def start(c, port=5000, debug=False):
     for _ in range(30):
         try:
             import requests
+
             response = requests.get(f"http://localhost:{port}/health", timeout=1)
             if response.status_code == 200:
                 print(f"Server started on http://localhost:{port}")
@@ -50,6 +51,7 @@ def stop(c, port=5000):
     # Find and kill process on port
     try:
         import psutil
+
         for proc in psutil.process_iter(["pid", "name", "cmdline"]):
             try:
                 if proc.info["cmdline"] and "app.py" in " ".join(proc.info["cmdline"]):
@@ -135,6 +137,7 @@ def typecheck(c):
 def migrate(c, message=None):
     """Create a new migration."""
     from backend.src.shared.config import get_settings
+
     settings = get_settings()
 
     cmd = ["alembic", "revision", "--autogenerate"]
@@ -152,6 +155,7 @@ def migrate(c, message=None):
 def upgrade(c):
     """Apply migrations."""
     from backend.src.shared.config import get_settings
+
     settings = get_settings()
 
     env = os.environ.copy()
@@ -163,6 +167,7 @@ def upgrade(c):
 def downgrade(c, revision="-1"):
     """Downgrade migrations."""
     from backend.src.shared.config import get_settings
+
     settings = get_settings()
 
     env = os.environ.copy()
@@ -190,8 +195,12 @@ def clean(c):
 def db_init(c):
     """Initialize database tables (for SQLite dev)."""
     from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
-    from backend.src.identity.adapters.orm import create_tables as create_identity_tables
-    from backend.src.subscriptions.adapters.orm import create_tables as create_sub_tables
+    from backend.src.identity.adapters.orm import (
+        create_tables as create_identity_tables,
+    )
+    from backend.src.subscriptions.adapters.orm import (
+        create_tables as create_sub_tables,
+    )
     from backend.src.publishing.adapters.orm import create_tables as create_pub_tables
 
     with SqlAlchemyUnitOfWork() as uow:
@@ -205,11 +214,15 @@ def db_init(c):
 def celery_worker(c, concurrency=4):
     """Start Celery worker."""
     from backend.src.notifications.tasks import celery_app
-    celery_app.worker_main(["worker", f"--concurrency={concurrency}", "--loglevel=info"])
+
+    celery_app.worker_main(
+        ["worker", f"--concurrency={concurrency}", "--loglevel=info"]
+    )
 
 
 @task
 def celery_beat(c):
     """Start Celery beat scheduler."""
     from backend.src.notifications.tasks import celery_app
+
     celery_app.worker_main(["beat", "--loglevel=info"])

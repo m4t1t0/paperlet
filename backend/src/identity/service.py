@@ -1,4 +1,5 @@
 """JWT authentication service."""
+
 from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -8,7 +9,8 @@ import jwt
 from passlib.hash import bcrypt
 
 from backend.src.shared.config import get_settings
-from backend.src.identity.domain.model import User, UserRole
+from backend.src.identity.domain.model import User, UserRole, Session
+from backend.src.identity.adapters.repository import UserRepository, SessionRepository
 
 
 class TokenPair:
@@ -38,7 +40,9 @@ class JwtService:
             "exp": int(expire.timestamp()),
             "type": "access",
         }
-        return jwt.encode(payload, self._settings.secret_key, algorithm=self._settings.jwt_algorithm)
+        return jwt.encode(
+            payload, self._settings.secret_key, algorithm=self._settings.jwt_algorithm
+        )
 
     def create_refresh_token(self, user_id: UUID, session_id: UUID) -> str:
         """Create a long-lived refresh token."""
@@ -51,7 +55,9 @@ class JwtService:
             "exp": int(expire.timestamp()),
             "type": "refresh",
         }
-        return jwt.encode(payload, self._settings.secret_key, algorithm=self._settings.jwt_algorithm)
+        return jwt.encode(
+            payload, self._settings.secret_key, algorithm=self._settings.jwt_algorithm
+        )
 
     def decode_token(self, token: str) -> dict:
         """Decode and validate a token."""
@@ -80,9 +86,8 @@ class JwtService:
             raise ValueError("Not a refresh token")
         return UUID(payload["sub"]), UUID(payload["sid"])
 
-    def create_token_pair(self, user_id: UUID) -> TokenPair:
+    def create_token_pair(self, user_id: UUID, session_id: UUID) -> TokenPair:
         """Create a new token pair for a user."""
-        session_id = uuid4()
         access_token = self.create_access_token(user_id, session_id)
         refresh_token = self.create_refresh_token(user_id, session_id)
         return TokenPair(
@@ -95,11 +100,20 @@ class JwtService:
 class AuthService:
     """Authentication service."""
 
-    def __init__(self, user_repo: "UserRepository", jwt_service: JwtService) -> None:
+    def __init__(
+        self,
+        user_repo: "UserRepository",
+        session_repo: SessionRepository,
+        jwt_service: JwtService,
+    ) -> None:
         self._user_repo = user_repo
+        self._session_repo = session_repo
         self._jwt = jwt_service
+        self._settings = get_settings()
 
-    def register(self, email: str, password: str, role: UserRole = UserRole.READER) -> User:
+    def register(
+        self, email: str, password: str, role: UserRole = UserRole.READER
+    ) -> User:
         """Register a new user."""
         existing = self._user_repo.get_by_email(email)
         if existing:
@@ -110,23 +124,90 @@ class AuthService:
         self._user_repo.add(user)
         return user
 
-    def login(self, email: str, password: str) -> TokenPair:
+    def login(
+        self,
+        email: str,
+        password: str,
+        user_agent: Optional[str] = None,
+        ip: Optional[str] = None,
+    ) -> TokenPair:
         """Authenticate user and return tokens."""
         user = self._user_repo.get_by_email(email)
         if not user or not user.verify_password(password):
             raise ValueError("Invalid credentials")
         if not user.is_active:
             raise ValueError("Account is deactivated")
-        return self._jwt.create_token_pair(user.id)
 
-    def refresh_tokens(self, refresh_token: str) -> TokenPair:
-        """Refresh access token using refresh token."""
+        session_id = uuid4()
+        refresh_token = self._jwt.create_refresh_token(user.id, session_id)
+        refresh_token_hash = bcrypt.hash(refresh_token)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            days=self._settings.jwt_refresh_token_expire_days
+        )
+
+        session = Session(
+            id=session_id,
+            user_id=user.id,
+            refresh_token_hash=refresh_token_hash,
+            expires_at=expires_at,
+            user_agent=user_agent,
+            ip=ip,
+        )
+        self._session_repo.add(session)
+
+        access_token = self._jwt.create_access_token(user.id, session_id)
+        return TokenPair(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=self._settings.jwt_access_token_expire_minutes * 60,
+        )
+
+    def refresh_tokens(
+        self,
+        refresh_token: str,
+        user_agent: Optional[str] = None,
+        ip: Optional[str] = None,
+    ) -> TokenPair:
+        """Refresh access token using refresh token with rotation."""
         user_id, session_id = self._jwt.verify_refresh_token(refresh_token)
         user = self._user_repo.get(user_id)
         if not user or not user.is_active:
             raise ValueError("User not found or inactive")
-        # In production, verify session exists and refresh token matches hash
-        return self._jwt.create_token_pair(user_id)
+
+        # Verify session exists and token matches
+        session = self._session_repo.get(session_id)
+        if not session or not session.is_valid():
+            raise ValueError("Session invalid or expired")
+        if not bcrypt.verify(refresh_token, session.refresh_token_hash):
+            # Token theft detected - revoke session
+            session.revoke()
+            raise ValueError("Invalid refresh token")
+
+        # Rotate: revoke old session, create new one
+        session.revoke()
+        new_session_id = uuid4()
+        new_refresh_token = self._jwt.create_refresh_token(user.id, new_session_id)
+        new_refresh_token_hash = bcrypt.hash(new_refresh_token)
+        new_expires_at = datetime.now(timezone.utc) + timedelta(
+            days=self._settings.jwt_refresh_token_expire_days
+        )
+
+        new_session = Session(
+            id=new_session_id,
+            user_id=user.id,
+            refresh_token_hash=new_refresh_token_hash,
+            expires_at=new_expires_at,
+            user_agent=user_agent,
+            ip=ip,
+        )
+        self._session_repo.add(new_session)
+
+        new_access_token = self._jwt.create_access_token(user.id, new_session_id)
+        return TokenPair(
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
+            expires_in=self._settings.jwt_access_token_expire_minutes * 60,
+        )
 
     def get_current_user(self, access_token: str) -> User:
         """Get user from access token."""
@@ -135,3 +216,9 @@ class AuthService:
         if not user or not user.is_active:
             raise ValueError("User not found or inactive")
         return user
+
+    def revoke_session(self, session_id: UUID) -> None:
+        """Revoke a session (logout)."""
+        session = self._session_repo.get(session_id)
+        if session:
+            session.revoke()

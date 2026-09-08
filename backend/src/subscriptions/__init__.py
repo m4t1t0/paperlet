@@ -1,4 +1,5 @@
 """Subscriptions context exports."""
+
 from backend.src.subscriptions.api import subscriptions_bp
 from backend.src.subscriptions.commands import (
     AssignAllocationCommand,

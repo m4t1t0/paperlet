@@ -1,6 +1,7 @@
 """Subscriptions domain model."""
+
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Optional
@@ -14,6 +15,7 @@ from backend.src.shared.config import get_settings
 
 class SubscriptionStatus(str, Enum):
     """Subscription status."""
+
     ACTIVE = "active"
     PAST_DUE = "past_due"
     CANCELED = "canceled"
@@ -22,6 +24,7 @@ class SubscriptionStatus(str, Enum):
 
 class AllocationAction(str, Enum):
     """Allocation log action types."""
+
     ALLOCATE = "allocate"
     SWAP = "swap"
     RELEASE = "release"
@@ -30,6 +33,7 @@ class AllocationAction(str, Enum):
 @dataclass
 class AllocationSlot:
     """A single allocation slot in a subscription."""
+
     writer_id: Optional[UUID] = None
     allocated_at: Optional[datetime] = None
     slot_index: int = 0
@@ -41,6 +45,7 @@ class AllocationSlot:
 
 class SubscriptionCreated(DomainEvent):
     """Event emitted when subscription is created."""
+
     reader_id: UUID
     status: SubscriptionStatus
     billing_cycle_start: datetime
@@ -48,6 +53,7 @@ class SubscriptionCreated(DomainEvent):
 
 class SubscriptionStatusChanged(DomainEvent):
     """Event emitted when subscription status changes."""
+
     reader_id: UUID
     old_status: SubscriptionStatus
     new_status: SubscriptionStatus
@@ -55,6 +61,7 @@ class SubscriptionStatusChanged(DomainEvent):
 
 class AllocationChanged(DomainEvent):
     """Event emitted when allocation changes."""
+
     reader_id: UUID
     action: AllocationAction
     writer_id: Optional[UUID]
@@ -67,6 +74,7 @@ class AllocationChanged(DomainEvent):
 
 class BillingCycleRenewed(DomainEvent):
     """Event emitted when billing cycle renews (credits reset)."""
+
     reader_id: UUID
     new_cycle_start: datetime
     credits_reset_to: int
@@ -94,7 +102,10 @@ class Subscription(AggregateRoot):
         self.status = status
         self.billing_cycle_start = billing_cycle_start or datetime.utcnow()
         self.change_credits = change_credits
-        self.slots = slots or [AllocationSlot(writer_id=None, allocated_at=None) for _ in range(self.MAX_SLOTS)]
+        self.slots = slots or [
+            AllocationSlot(writer_id=None, allocated_at=None)
+            for _ in range(self.MAX_SLOTS)
+        ]
         # Set slot_index for each slot
         for i, slot in enumerate(self.slots):
             slot.slot_index = i
@@ -123,13 +134,15 @@ class Subscription(AggregateRoot):
             change_credits=settings.change_credits_per_billing_cycle,
             external_subscription_id=external_subscription_id,
         )
-        subscription.add_event(SubscriptionCreated(
-            aggregate_id=subscription.id,
-            aggregate_type="Subscription",
-            reader_id=reader_id,
-            status=status,
-            billing_cycle_start=subscription.billing_cycle_start,
-        ))
+        subscription.add_event(
+            SubscriptionCreated(
+                aggregate_id=subscription.id,
+                aggregate_type="Subscription",
+                reader_id=reader_id,
+                status=status,
+                billing_cycle_start=subscription.billing_cycle_start,
+            )
+        )
         return subscription
 
     @property
@@ -185,18 +198,20 @@ class Subscription(AggregateRoot):
         empty_slot.allocated_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
 
-        self.add_event(AllocationChanged(
-            aggregate_id=self.id,
-            aggregate_type="Subscription",
-            reader_id=self.reader_id,
-            action=AllocationAction.ALLOCATE,
-            writer_id=writer_id,
-            previous_writer_id=None,
-            credits_spent=0,
-            remaining_credits=self.change_credits,
-            empty_slots_before=self.empty_slots + 1,
-            empty_slots_after=self.empty_slots,
-        ))
+        self.add_event(
+            AllocationChanged(
+                aggregate_id=self.id,
+                aggregate_type="Subscription",
+                reader_id=self.reader_id,
+                action=AllocationAction.ALLOCATE,
+                writer_id=writer_id,
+                previous_writer_id=None,
+                credits_spent=0,
+                remaining_credits=self.change_credits,
+                empty_slots_before=self.empty_slots + 1,
+                empty_slots_after=self.empty_slots,
+            )
+        )
         return 0
 
     def swap_writer(self, current_writer_id: UUID, new_writer_id: UUID) -> int:
@@ -224,18 +239,20 @@ class Subscription(AggregateRoot):
         self.change_credits -= 1
         self.updated_at = datetime.utcnow()
 
-        self.add_event(AllocationChanged(
-            aggregate_id=self.id,
-            aggregate_type="Subscription",
-            reader_id=self.reader_id,
-            action=AllocationAction.SWAP,
-            writer_id=new_writer_id,
-            previous_writer_id=previous_writer_id,
-            credits_spent=1,
-            remaining_credits=self.change_credits,
-            empty_slots_before=self.empty_slots,
-            empty_slots_after=self.empty_slots,
-        ))
+        self.add_event(
+            AllocationChanged(
+                aggregate_id=self.id,
+                aggregate_type="Subscription",
+                reader_id=self.reader_id,
+                action=AllocationAction.SWAP,
+                writer_id=new_writer_id,
+                previous_writer_id=previous_writer_id,
+                credits_spent=1,
+                remaining_credits=self.change_credits,
+                empty_slots_before=self.empty_slots,
+                empty_slots_after=self.empty_slots,
+            )
+        )
         return 1
 
     def release_writer(self, writer_id: UUID) -> int:
@@ -260,36 +277,39 @@ class Subscription(AggregateRoot):
         self.change_credits -= 1
         self.updated_at = datetime.utcnow()
 
-        self.add_event(AllocationChanged(
-            aggregate_id=self.id,
-            aggregate_type="Subscription",
-            reader_id=self.reader_id,
-            action=AllocationAction.RELEASE,
-            writer_id=None,
-            previous_writer_id=previous_writer_id,
-            credits_spent=1,
-            remaining_credits=self.change_credits,
-            empty_slots_before=self.empty_slots - 1,
-            empty_slots_after=self.empty_slots,
-        ))
+        self.add_event(
+            AllocationChanged(
+                aggregate_id=self.id,
+                aggregate_type="Subscription",
+                reader_id=self.reader_id,
+                action=AllocationAction.RELEASE,
+                writer_id=None,
+                previous_writer_id=previous_writer_id,
+                credits_spent=1,
+                remaining_credits=self.change_credits,
+                empty_slots_before=self.empty_slots - 1,
+                empty_slots_after=self.empty_slots,
+            )
+        )
         return 1
 
     def renew_billing_cycle(self) -> None:
         """Renew billing cycle - reset credits and update cycle start."""
         settings = get_settings()
         new_cycle_start = datetime.utcnow()
-        old_credits = self.change_credits
         self.change_credits = settings.change_credits_per_billing_cycle
         self.billing_cycle_start = new_cycle_start
         self.updated_at = new_cycle_start
 
-        self.add_event(BillingCycleRenewed(
-            aggregate_id=self.id,
-            aggregate_type="Subscription",
-            reader_id=self.reader_id,
-            new_cycle_start=new_cycle_start,
-            credits_reset_to=self.change_credits,
-        ))
+        self.add_event(
+            BillingCycleRenewed(
+                aggregate_id=self.id,
+                aggregate_type="Subscription",
+                reader_id=self.reader_id,
+                new_cycle_start=new_cycle_start,
+                credits_reset_to=self.change_credits,
+            )
+        )
 
     def update_status(self, new_status: SubscriptionStatus) -> None:
         """Update subscription status."""
@@ -297,18 +317,22 @@ class Subscription(AggregateRoot):
             old_status = self.status
             self.status = new_status
             self.updated_at = datetime.utcnow()
-            self.add_event(SubscriptionStatusChanged(
-                aggregate_id=self.id,
-                aggregate_type="Subscription",
-                reader_id=self.reader_id,
-                old_status=old_status,
-                new_status=new_status,
-            ))
+            self.add_event(
+                SubscriptionStatusChanged(
+                    aggregate_id=self.id,
+                    aggregate_type="Subscription",
+                    reader_id=self.reader_id,
+                    old_status=old_status,
+                    new_status=new_status,
+                )
+            )
 
     def get_allocation_summary(self) -> dict:
         """Get summary for API response."""
         # Handle both enum and string status (from DB)
-        status_value = self.status.value if hasattr(self.status, 'value') else self.status
+        status_value = (
+            self.status.value if hasattr(self.status, "value") else self.status
+        )
         return {
             "subscription_id": str(self.id),
             "status": status_value,
@@ -321,7 +345,9 @@ class Subscription(AggregateRoot):
             "allocations": [
                 {
                     "writer_id": str(slot.writer_id) if slot.writer_id else None,
-                    "allocated_at": slot.allocated_at.isoformat() if slot.allocated_at else None,
+                    "allocated_at": slot.allocated_at.isoformat()
+                    if slot.allocated_at
+                    else None,
                 }
                 for slot in self.slots
             ],

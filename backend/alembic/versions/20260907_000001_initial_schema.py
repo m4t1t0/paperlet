@@ -1,4 +1,5 @@
 """Initial schema."""
+
 from __future__ import annotations
 from alembic import op
 import sqlalchemy as sa
@@ -25,7 +26,12 @@ def upgrade() -> None:
     # User roles table
     op.create_table(
         "user_roles",
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
         sa.Column("role", sa.String(20), primary_key=True),
     )
 
@@ -33,11 +39,24 @@ def upgrade() -> None:
     op.create_table(
         "subscriptions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("reader_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True),
+        sa.Column(
+            "reader_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+            unique=True,
+            index=True,
+        ),
         sa.Column("status", sa.String(20), nullable=False, server_default="incomplete"),
         sa.Column("billing_cycle_start", sa.DateTime, nullable=False),
         sa.Column("change_credits", sa.Integer, nullable=False, server_default="2"),
-        sa.Column("external_subscription_id", sa.String(255), unique=True, nullable=True, index=True),
+        sa.Column(
+            "external_subscription_id",
+            sa.String(255),
+            unique=True,
+            nullable=True,
+            index=True,
+        ),
         sa.Column("created_at", sa.DateTime, nullable=False),
         sa.Column("updated_at", sa.DateTime, nullable=False),
     )
@@ -46,9 +65,21 @@ def upgrade() -> None:
     op.create_table(
         "allocation_slots",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("subscription_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subscriptions.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "subscription_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("subscriptions.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("slot_index", sa.Integer, nullable=False),
-        sa.Column("writer_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True),
+        sa.Column(
+            "writer_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
         sa.Column("allocated_at", sa.DateTime, nullable=True),
     )
 
@@ -56,11 +87,34 @@ def upgrade() -> None:
     op.create_table(
         "allocation_log",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("subscription_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subscriptions.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("reader_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "subscription_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("subscriptions.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "reader_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("action", sa.String(20), nullable=False),
-        sa.Column("writer_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True),
-        sa.Column("previous_writer_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "writer_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
+        sa.Column(
+            "previous_writer_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("credits_spent", sa.Integer, nullable=False),
         sa.Column("remaining_credits", sa.Integer, nullable=False),
         sa.Column("empty_slots_before", sa.Integer, nullable=False),
@@ -72,7 +126,13 @@ def upgrade() -> None:
     op.create_table(
         "posts",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("writer_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "writer_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("title", sa.String(500), nullable=False),
         sa.Column("preview_content", sa.Text, nullable=False),
         sa.Column("subscriber_content", sa.Text, nullable=False),

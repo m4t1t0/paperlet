@@ -1,4 +1,5 @@
 """Shared database registry and metadata for all contexts."""
+
 from __future__ import annotations
 from sqlalchemy.orm import registry
 

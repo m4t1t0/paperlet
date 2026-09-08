@@ -1,9 +1,14 @@
 """Celery tasks for notifications."""
+
 from __future__ import annotations
 from celery import Celery
 from uuid import UUID
 
 from backend.src.shared.config import get_settings
+from backend.src.notifications.service import (
+    get_subscribers_with_allocation,
+    get_followers_without_allocation,
+)
 
 settings = get_settings()
 
@@ -37,9 +42,12 @@ celery_app.conf.update(
 def send_post_published_emails(self, post_id: str) -> dict:
     """Send post published emails in batches."""
     from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
-    from backend.src.identity.adapters.sqlalchemy_repository import SqlAlchemyUserRepository
-    from backend.src.subscriptions.adapters.sqlalchemy_repository import SqlAlchemySubscriptionRepository
-    from backend.src.publishing.adapters.sqlalchemy_repository import SqlAlchemyPostRepository
+    from backend.src.identity.adapters.sqlalchemy_repository import (
+        SqlAlchemyUserRepository,
+    )
+    from backend.src.publishing.adapters.sqlalchemy_repository import (
+        SqlAlchemyPostRepository,
+    )
     from backend.src.notifications.service import NotificationService
     from backend.src.notifications.adapters.stub_sender import StubEmailSender
 
@@ -59,33 +67,25 @@ def send_post_published_emails(self, post_id: str) -> dict:
         if not writer:
             return {"status": "error", "message": "Writer not found"}
 
-        sub_repo = SqlAlchemySubscriptionRepository(uow.session)
+        # Get subscribers and followers from read models
+        subscribers = get_subscribers_with_allocation(post.writer_id)
+        followers = get_followers_without_allocation(post.writer_id)
 
-        # Get all active subscriptions with allocation to this writer
-        from sqlalchemy import and_
-        from backend.src.subscriptions.adapters.orm import allocation_slots_table
-        from backend.src.subscriptions.domain.model import SubscriptionStatus
-
-        # Query subscriptions with allocation to this writer
-        sub_query = (
-            uow.session.query(sub_repo._session.query(SubscriptionStatus).statement)  # This is a simplified approach
-        )
-
-        # For stub implementation, we'll just log
         sender = StubEmailSender()
         service = NotificationService(sender)
 
-        # Send to writer themselves (they have allocation to themselves conceptually)
         service.send_post_published_notifications(
             post=post,
             writer=writer,
-            subscribers_with_allocation=[],  # Would be populated from query
-            followers_without_allocation=[],  # Would be populated from query
+            subscribers_with_allocation=subscribers,
+            followers_without_allocation=followers,
         )
 
         return {
             "status": "sent",
             "post_id": str(post_id),
+            "subscribers_notified": len(subscribers),
+            "followers_notified": len(followers),
             "emails_logged": len(sender.sent_emails),
         }
 
@@ -94,7 +94,9 @@ def send_post_published_emails(self, post_id: str) -> dict:
 def process_scheduled_posts() -> dict:
     """Process posts scheduled for publishing now."""
     from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
-    from backend.src.publishing.adapters.sqlalchemy_repository import SqlAlchemyPostRepository
+    from backend.src.publishing.adapters.sqlalchemy_repository import (
+        SqlAlchemyPostRepository,
+    )
     from backend.src.shared.service_layer.messagebus import MessageBus
 
     with SqlAlchemyUnitOfWork() as uow:

@@ -5,7 +5,7 @@ import pytest
 from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
 from backend.src.identity.domain.model import User, UserRole
 from backend.src.identity.service import JwtService, AuthService
-from backend.src.identity.adapters.sqlalchemy_repository import SqlAlchemyUserRepository
+from backend.src.identity.adapters.sqlalchemy_repository import SqlAlchemyUserRepository, SqlAlchemySessionRepository
 
 
 # No need for setup_db fixture - tables are created at session scope
@@ -18,8 +18,9 @@ class TestAuthIntegration:
     def test_register_and_login(self) -> None:
         with SqlAlchemyUnitOfWork() as uow:
             user_repo = SqlAlchemyUserRepository(uow.session)
+            session_repo = SqlAlchemySessionRepository(uow.session)
             jwt_service = JwtService()
-            auth = AuthService(user_repo, jwt_service)
+            auth = AuthService(user_repo, session_repo, jwt_service)
 
             # Register
             user = auth.register("test@example.com", "password123", UserRole.READER)
@@ -37,8 +38,9 @@ class TestAuthIntegration:
     def test_login_fails_with_wrong_password(self) -> None:
         with SqlAlchemyUnitOfWork() as uow:
             user_repo = SqlAlchemyUserRepository(uow.session)
+            session_repo = SqlAlchemySessionRepository(uow.session)
             jwt_service = JwtService()
-            auth = AuthService(user_repo, jwt_service)
+            auth = AuthService(user_repo, session_repo, jwt_service)
 
             auth.register("test@example.com", "password123")
             uow.commit()
@@ -49,8 +51,9 @@ class TestAuthIntegration:
     def test_login_fails_for_nonexistent_user(self) -> None:
         with SqlAlchemyUnitOfWork() as uow:
             user_repo = SqlAlchemyUserRepository(uow.session)
+            session_repo = SqlAlchemySessionRepository(uow.session)
             jwt_service = JwtService()
-            auth = AuthService(user_repo, jwt_service)
+            auth = AuthService(user_repo, session_repo, jwt_service)
 
             with pytest.raises(ValueError, match="Invalid credentials"):
                 auth.login("nonexistent@example.com", "password123")
@@ -58,8 +61,9 @@ class TestAuthIntegration:
     def test_refresh_token(self) -> None:
         with SqlAlchemyUnitOfWork() as uow:
             user_repo = SqlAlchemyUserRepository(uow.session)
+            session_repo = SqlAlchemySessionRepository(uow.session)
             jwt_service = JwtService()
-            auth = AuthService(user_repo, jwt_service)
+            auth = AuthService(user_repo, session_repo, jwt_service)
 
             auth.register("test@example.com", "password123")
             uow.commit()
@@ -73,8 +77,9 @@ class TestAuthIntegration:
     def test_get_current_user(self) -> None:
         with SqlAlchemyUnitOfWork() as uow:
             user_repo = SqlAlchemyUserRepository(uow.session)
+            session_repo = SqlAlchemySessionRepository(uow.session)
             jwt_service = JwtService()
-            auth = AuthService(user_repo, jwt_service)
+            auth = AuthService(user_repo, session_repo, jwt_service)
 
             user = auth.register("test@example.com", "password123", UserRole.WRITER)
             uow.commit()
@@ -89,8 +94,9 @@ class TestAuthIntegration:
     def test_register_duplicate_email_fails(self) -> None:
         with SqlAlchemyUnitOfWork() as uow:
             user_repo = SqlAlchemyUserRepository(uow.session)
+            session_repo = SqlAlchemySessionRepository(uow.session)
             jwt_service = JwtService()
-            auth = AuthService(user_repo, jwt_service)
+            auth = AuthService(user_repo, session_repo, jwt_service)
 
             auth.register("test@example.com", "password123")
             uow.commit()
@@ -101,8 +107,9 @@ class TestAuthIntegration:
     def test_inactive_user_cannot_login(self) -> None:
         with SqlAlchemyUnitOfWork() as uow:
             user_repo = SqlAlchemyUserRepository(uow.session)
+            session_repo = SqlAlchemySessionRepository(uow.session)
             jwt_service = JwtService()
-            auth = AuthService(user_repo, jwt_service)
+            auth = AuthService(user_repo, session_repo, jwt_service)
 
             user = auth.register("test@example.com", "password123")
             uow.commit()

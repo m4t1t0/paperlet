@@ -1,4 +1,5 @@
 """Identity context exports."""
+
 from backend.src.identity.api import auth_bp
 from backend.src.identity.commands import (
     GetProfileCommand,

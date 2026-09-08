@@ -1,4 +1,5 @@
 """Alembic environment configuration."""
+
 from __future__ import annotations
 from logging.config import fileConfig
 import sys
@@ -12,7 +13,9 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 # Import all models to register them
 from backend.src.identity.adapters.orm import mapper_registry as identity_registry
-from backend.src.subscriptions.adapters.orm import mapper_registry as subscriptions_registry
+from backend.src.subscriptions.adapters.orm import (
+    mapper_registry as subscriptions_registry,
+)
 from backend.src.publishing.adapters.orm import mapper_registry as publishing_registry
 from backend.src.shared.config import get_settings
 

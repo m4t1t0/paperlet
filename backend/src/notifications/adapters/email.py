@@ -1,6 +1,6 @@
 """Notification sender interface."""
+
 from __future__ import annotations
-from abc import ABC, abstractmethod
 from typing import Protocol
 
 from backend.src.notifications.domain.model import EmailRecipient, SendResult
@@ -23,7 +23,13 @@ class EmailTemplateRenderer:
     """Render email templates."""
 
     @staticmethod
-    def render_post_published_full(recipient: EmailRecipient, post_title: str, post_preview: str, post_full: str, writer_name: str) -> tuple[str, str]:
+    def render_post_published_full(
+        recipient: EmailRecipient,
+        post_title: str,
+        post_preview: str,
+        post_full: str,
+        writer_name: str,
+    ) -> tuple[str, str]:
         """Render full post email for allocated readers."""
         subject = f"New post from {writer_name}: {post_title}"
         html = f"""
@@ -36,11 +42,16 @@ class EmailTemplateRenderer:
         </body>
         </html>
         """
-        text = f"{post_title}\n\nBy {writer_name}\n\n{post_full}"
         return subject, html
 
     @staticmethod
-    def render_post_published_preview(recipient: EmailRecipient, post_title: str, post_preview: str, writer_name: str, subscribe_url: str) -> tuple[str, str]:
+    def render_post_published_preview(
+        recipient: EmailRecipient,
+        post_title: str,
+        post_preview: str,
+        writer_name: str,
+        subscribe_url: str,
+    ) -> tuple[str, str]:
         """Render preview email for non-allocated readers."""
         subject = f"New post from {writer_name}: {post_title} (preview)"
         html = f"""
@@ -55,5 +66,4 @@ class EmailTemplateRenderer:
         </body>
         </html>
         """
-        text = f"{post_title}\n\nBy {writer_name}\n\n{post_preview}\n\nSubscribe to read more: {subscribe_url}"
         return subject, html

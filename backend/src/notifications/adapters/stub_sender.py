@@ -1,12 +1,12 @@
 """Stub email sender for v1 (logs only)."""
+
 from __future__ import annotations
 import logging
-from typing import TYPE_CHECKING
 
-from backend.src.notifications.adapters.email import EmailRecipient, NotificationSender, SendResult
-
-if TYPE_CHECKING:
-    from backend.src.notifications.domain.model import EmailBatch
+from backend.src.notifications.adapters.email import (
+    EmailRecipient,
+    SendResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +37,17 @@ class StubEmailSender:
             self.sent_emails.append(email_data)
             logger.info(f"STUB EMAIL SENT: {email_data}")
 
-            results.append(SendResult(
-                recipient_id=recipient.user_id,
-                success=True,
-                message_id=f"stub-{len(self.sent_emails)}",
-            ))
+            results.append(
+                SendResult(
+                    recipient_id=recipient.user_id,
+                    success=True,
+                    message_id=f"stub-{len(self.sent_emails)}",
+                )
+            )
         return results
 
 
 class LoggingEmailSender(StubEmailSender):
     """Alias for clarity."""
+
     pass

@@ -1,9 +1,13 @@
 """Mock payment gateway for development and testing."""
+
 from __future__ import annotations
 import uuid
-from typing import Optional
 
-from backend.src.adapters.payments import PaymentGatewayAdapter, SubscriptionResult, SubscriptionStatusResult
+from backend.src.adapters.payments import (
+    PaymentGatewayAdapter,
+    SubscriptionResult,
+    SubscriptionStatusResult,
+)
 
 
 class MockPaymentGateway(PaymentGatewayAdapter):
@@ -41,7 +45,9 @@ class MockPaymentGateway(PaymentGatewayAdapter):
         if subscription_id in self._subscriptions:
             self._subscriptions[subscription_id]["status"] = "canceled"
             self._subscriptions[subscription_id]["cancel_at_period_end"] = True
-            self._emit_webhook("subscription.canceled", {"subscription_id": subscription_id})
+            self._emit_webhook(
+                "subscription.canceled", {"subscription_id": subscription_id}
+            )
             return True
         return False
 
@@ -78,19 +84,26 @@ class MockPaymentGateway(PaymentGatewayAdapter):
         """Simulate a failed payment."""
         if subscription_id in self._subscriptions:
             self._subscriptions[subscription_id]["status"] = "past_due"
-            self._emit_webhook("invoice.payment_failed", {"subscription_id": subscription_id})
+            self._emit_webhook(
+                "invoice.payment_failed", {"subscription_id": subscription_id}
+            )
 
     def simulate_payment_succeeded(self, subscription_id: str) -> None:
         """Simulate a successful payment renewal."""
         if subscription_id in self._subscriptions:
             self._subscriptions[subscription_id]["status"] = "active"
-            self._emit_webhook("invoice.payment_succeeded", {"subscription_id": subscription_id})
+            self._emit_webhook(
+                "invoice.payment_succeeded", {"subscription_id": subscription_id}
+            )
 
     def simulate_subscription_updated(self, subscription_id: str, status: str) -> None:
         """Simulate subscription status update."""
         if subscription_id in self._subscriptions:
             self._subscriptions[subscription_id]["status"] = status
-            self._emit_webhook("subscription.updated", {"subscription_id": subscription_id, "status": status})
+            self._emit_webhook(
+                "subscription.updated",
+                {"subscription_id": subscription_id, "status": status},
+            )
 
     def get_all_subscriptions(self) -> dict:
         """Get all subscriptions (for testing)."""

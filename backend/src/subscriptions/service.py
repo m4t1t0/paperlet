@@ -1,4 +1,5 @@
 """Subscriptions service layer."""
+
 from __future__ import annotations
 from typing import Optional
 from uuid import UUID
@@ -21,7 +22,9 @@ class SubscriptionService:
         self._payment_gateway = payment_gateway or MockPaymentGateway()
         self._settings = get_settings()
 
-    def create_subscription(self, reader_id: UUID, payment_method_id: str) -> Subscription:
+    def create_subscription(
+        self, reader_id: UUID, payment_method_id: str
+    ) -> Subscription:
         """Create a new subscription via payment gateway."""
         # Check if already has active subscription
         existing = self._subscription_repo.get_by_reader(reader_id)
@@ -81,7 +84,10 @@ class SubscriptionService:
         """Handle payment succeeded webhook - renew billing cycle."""
         external_id = payload.get("subscription_id")
         subscription = self._subscription_repo.get_by_external_id(external_id)
-        if subscription and subscription.status in (SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE):
+        if subscription and subscription.status in (
+            SubscriptionStatus.ACTIVE,
+            SubscriptionStatus.PAST_DUE,
+        ):
             subscription.update_status(SubscriptionStatus.ACTIVE)
             subscription.renew_billing_cycle()
 

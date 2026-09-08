@@ -1,7 +1,6 @@
 """Subscriptions command handlers."""
+
 from __future__ import annotations
-from typing import Optional
-from uuid import UUID
 
 from backend.src.shared.config import get_settings
 from backend.src.shared.service_layer.messagebus import CommandHandler
@@ -14,7 +13,7 @@ from backend.src.subscriptions.commands import (
     SubscribeCommand,
     SwapAllocationCommand,
 )
-from backend.src.subscriptions.domain.model import Subscription, SubscriptionStatus
+from backend.src.subscriptions.domain.model import Subscription
 from backend.src.subscriptions.service import SubscriptionService
 
 
@@ -90,7 +89,9 @@ class SwapAllocationHandler(CommandHandler[SwapAllocationCommand, dict]):
         if not subscription:
             raise ValueError("No active subscription found")
 
-        credits_spent = subscription.swap_writer(command.current_writer_id, command.new_writer_id)
+        credits_spent = subscription.swap_writer(
+            command.current_writer_id, command.new_writer_id
+        )
         return {
             "success": True,
             "credits_spent": credits_spent,

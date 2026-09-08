@@ -1,5 +1,7 @@
 """SQLAlchemy Post repository implementation."""
+
 from __future__ import annotations
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -22,13 +24,17 @@ class SqlAlchemyPostRepository(PostRepository):
     def get(self, post_id: UUID) -> Optional[Post]:
         return self._session.get(Post, post_id)
 
-    def get_by_writer(self, writer_id: UUID, status: Optional[PostStatus] = None) -> list[Post]:
+    def get_by_writer(
+        self, writer_id: UUID, status: Optional[PostStatus] = None
+    ) -> list[Post]:
         query = self._session.query(Post).filter(Post.writer_id == writer_id)
         if status:
             query = query.filter(Post.status == status)
         return query.order_by(desc(Post.created_at)).all()
 
-    def get_published_for_feed(self, writer_ids: list[UUID], limit: int = 20, cursor: Optional[str] = None) -> list[Post]:
+    def get_published_for_feed(
+        self, writer_ids: list[UUID], limit: int = 20, cursor: Optional[str] = None
+    ) -> list[Post]:
         query = (
             self._session.query(Post)
             .filter(Post.writer_id.in_(writer_ids))
@@ -44,7 +50,6 @@ class SqlAlchemyPostRepository(PostRepository):
         return query.limit(limit + 1).all()  # +1 to check if more exist
 
     def get_scheduled_for_publishing(self) -> list[Post]:
-        from datetime import datetime
         now = datetime.utcnow()
         return (
             self._session.query(Post)

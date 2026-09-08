@@ -1,8 +1,10 @@
 """Unit of Work pattern implementation."""
+
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -35,12 +37,10 @@ class AbstractUnitOfWork(AbstractContextManager, ABC):
         self._events: list = []
 
     @abstractmethod
-    def __enter__(self) -> AbstractUnitOfWork:
-        ...
+    def __enter__(self) -> AbstractUnitOfWork: ...
 
     @abstractmethod
-    def __exit__(self, *args: Any) -> None:
-        ...
+    def __exit__(self, *args: Any) -> None: ...
 
     @abstractmethod
     def commit(self) -> None:
