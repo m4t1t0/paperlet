@@ -282,7 +282,7 @@ def _register_handlers(bus: MessageBus) -> None:
         SqlAlchemySubscriptionRepository,
     )
     from backend.src.subscriptions.service import SubscriptionService
-    from backend.src.adapters.mock_payments import MockPaymentGateway
+    from backend.src.adapters import create_payment_gateway
 
     bus.register_command(
         __import__(
@@ -293,7 +293,7 @@ def _register_handlers(bus: MessageBus) -> None:
             lambda uow, b: SubscribeHandler(
                 SqlAlchemySubscriptionRepository(uow.session),
                 SubscriptionService(
-                    SqlAlchemySubscriptionRepository(uow.session), MockPaymentGateway()
+                    SqlAlchemySubscriptionRepository(uow.session), create_payment_gateway()
                 ),
             ),
         ),

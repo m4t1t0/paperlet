@@ -3,8 +3,10 @@
 from __future__ import annotations
 from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import BadRequest, Unauthorized
+from uuid import UUID
 
 from backend.src.identity.service import JwtService
+from backend.src.shared.domain.value_objects import ReaderId, WriterId
 from backend.src.shared.service_layer.messagebus import MessageBus
 from backend.src.subscriptions.commands import (
     AssignAllocationCommand,
@@ -60,7 +62,7 @@ def subscribe() -> tuple:
     payment_method_id = data.get("payment_method_id", "pm_mock_default")
 
     command = SubscribeCommand(
-        reader_id=user["id"], payment_method_id=payment_method_id
+        reader_id=ReaderId(value=user["id"]), payment_method_id=payment_method_id
     )
     bus = get_bus()
     subscription = bus.handle(command)
@@ -73,7 +75,7 @@ def get_allocations() -> tuple:
     """Get current allocations and change credits."""
     user = get_current_user()
 
-    command = GetAllocationsCommand(reader_id=user["id"])
+    command = GetAllocationsCommand(reader_id=ReaderId(value=user["id"]))
     bus = get_bus()
     summary = bus.handle(command)
 
@@ -90,14 +92,12 @@ def assign_allocation() -> tuple:
     if not writer_id_str:
         raise BadRequest("writer_id is required")
 
-    from uuid import UUID
-
     try:
         writer_id = UUID(writer_id_str)
     except ValueError:
         raise BadRequest("Invalid writer_id format")
 
-    command = AssignAllocationCommand(reader_id=user["id"], writer_id=writer_id)
+    command = AssignAllocationCommand(reader_id=ReaderId(value=user["id"]), writer_id=WriterId(value=writer_id))
     bus = get_bus()
     result = bus.handle(command)
 
@@ -115,8 +115,6 @@ def swap_allocation() -> tuple:
     if not current_writer_id_str or not new_writer_id_str:
         raise BadRequest("current_writer_id and new_writer_id are required")
 
-    from uuid import UUID
-
     try:
         current_writer_id = UUID(current_writer_id_str)
         new_writer_id = UUID(new_writer_id_str)
@@ -124,9 +122,9 @@ def swap_allocation() -> tuple:
         raise BadRequest("Invalid writer_id format")
 
     command = SwapAllocationCommand(
-        reader_id=user["id"],
-        current_writer_id=current_writer_id,
-        new_writer_id=new_writer_id,
+        reader_id=ReaderId(value=user["id"]),
+        current_writer_id=WriterId(value=current_writer_id),
+        new_writer_id=WriterId(value=new_writer_id),
     )
     bus = get_bus()
     try:
@@ -142,14 +140,12 @@ def release_allocation(writer_id: str) -> tuple:
     """Release a writer slot."""
     user = get_current_user()
 
-    from uuid import UUID
-
     try:
         writer_uuid = UUID(writer_id)
     except ValueError:
         raise BadRequest("Invalid writer_id format")
 
-    command = ReleaseAllocationCommand(reader_id=user["id"], writer_id=writer_uuid)
+    command = ReleaseAllocationCommand(reader_id=ReaderId(value=user["id"]), writer_id=WriterId(value=writer_uuid))
     bus = get_bus()
     try:
         result = bus.handle(command)

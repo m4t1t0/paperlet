@@ -10,7 +10,7 @@ from passlib.hash import bcrypt
 
 from backend.src.shared.config import get_settings
 from backend.src.identity.domain.model import User, UserRole, Session
-from backend.src.identity.adapters.repository import UserRepository, SessionRepository
+from backend.src.identity.domain.repository import UserRepository, SessionRepository
 
 
 class TokenPair:

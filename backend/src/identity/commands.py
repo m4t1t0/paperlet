@@ -3,8 +3,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
-from uuid import UUID
 
+from backend.src.shared.domain.value_objects import UserId
 from backend.src.shared.service_layer.messagebus import Command
 from backend.src.identity.domain.model import UserRole
 
@@ -41,4 +41,4 @@ class RefreshTokenCommand(Command):
 class GetProfileCommand(Command):
     """Command to get current user profile."""
 
-    user_id: UUID
+    user_id: UserId

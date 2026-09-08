@@ -3,8 +3,10 @@
 from __future__ import annotations
 from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import BadRequest, Unauthorized
+from uuid import UUID
 
 from backend.src.identity.service import JwtService
+from backend.src.shared.domain.value_objects import PostId, ReaderId, WriterId
 from backend.src.shared.service_layer.messagebus import MessageBus
 from backend.src.publishing.commands import (
     CancelPostCommand,
@@ -97,7 +99,7 @@ def create_post() -> tuple:
             raise BadRequest("Invalid scheduled_at format, use ISO 8601")
 
         command = CreateScheduledPostCommand(
-            writer_id=writer["id"],
+            writer_id=WriterId(value=writer["id"]),
             title=title,
             preview_content=preview_content,
             subscriber_content=subscriber_content,
@@ -105,7 +107,7 @@ def create_post() -> tuple:
         )
     else:
         command = CreatePostCommand(
-            writer_id=writer["id"],
+            writer_id=WriterId(value=writer["id"]),
             title=title,
             preview_content=preview_content,
             subscriber_content=subscriber_content,
@@ -131,14 +133,12 @@ def publish_post(post_id: str) -> tuple:
     """Publish a post immediately."""
     writer = get_current_writer()
 
-    from uuid import UUID
-
     try:
         post_uuid = UUID(post_id)
     except ValueError:
         raise BadRequest("Invalid post_id format")
 
-    command = PublishPostCommand(writer_id=writer["id"], post_id=post_uuid)
+    command = PublishPostCommand(writer_id=WriterId(value=writer["id"]), post_id=PostId(value=post_uuid))
     bus = get_bus()
     post = bus.handle(command)
 
@@ -171,15 +171,13 @@ def schedule_post(post_id: str) -> tuple:
     except ValueError:
         raise BadRequest("Invalid scheduled_at format, use ISO 8601")
 
-    from uuid import UUID
-
     try:
         post_uuid = UUID(post_id)
     except ValueError:
         raise BadRequest("Invalid post_id format")
 
     command = SchedulePostCommand(
-        writer_id=writer["id"], post_id=post_uuid, scheduled_for=scheduled_for
+        writer_id=WriterId(value=writer["id"]), post_id=PostId(value=post_uuid), scheduled_for=scheduled_for
     )
     bus = get_bus()
     post = bus.handle(command)
@@ -201,14 +199,12 @@ def cancel_post(post_id: str) -> tuple:
     """Cancel a scheduled post."""
     writer = get_current_writer()
 
-    from uuid import UUID
-
     try:
         post_uuid = UUID(post_id)
     except ValueError:
         raise BadRequest("Invalid post_id format")
 
-    command = CancelPostCommand(writer_id=writer["id"], post_id=post_uuid)
+    command = CancelPostCommand(writer_id=WriterId(value=writer["id"]), post_id=PostId(value=post_uuid))
     bus = get_bus()
     post = bus.handle(command)
 
@@ -227,16 +223,14 @@ def update_post(post_id: str) -> tuple:
     writer = get_current_writer()
     data = request.get_json() or {}
 
-    from uuid import UUID
-
     try:
         post_uuid = UUID(post_id)
     except ValueError:
         raise BadRequest("Invalid post_id format")
 
     command = UpdatePostCommand(
-        writer_id=writer["id"],
-        post_id=post_uuid,
+        writer_id=WriterId(value=writer["id"]),
+        post_id=PostId(value=post_uuid),
         title=data.get("title"),
         preview_content=data.get("preview_content"),
         subscriber_content=data.get("subscriber_content"),
@@ -259,14 +253,12 @@ def get_post(post_id: str) -> tuple:
     """Get a single post with paywall logic."""
     reader = get_current_reader()
 
-    from uuid import UUID
-
     try:
         post_uuid = UUID(post_id)
     except ValueError:
         raise BadRequest("Invalid post_id format")
 
-    command = GetPostCommand(post_id=post_uuid, reader_id=reader["id"])
+    command = GetPostCommand(post_id=PostId(value=post_uuid), reader_id=ReaderId(value=reader["id"]))
     bus = get_bus()
     result = bus.handle(command)
 
@@ -281,7 +273,7 @@ def get_feed() -> tuple:
     limit = request.args.get("limit", 20, type=int)
     cursor = request.args.get("cursor")
 
-    command = GetFeedCommand(reader_id=reader["id"], limit=limit, cursor=cursor)
+    command = GetFeedCommand(reader_id=ReaderId(value=reader["id"]), limit=limit, cursor=cursor)
     bus = get_bus()
     result = bus.handle(command)
 
@@ -295,7 +287,7 @@ def get_writer_posts() -> tuple:
 
     status = request.args.get("status")
 
-    command = GetWriterPostsCommand(writer_id=writer["id"], status=status)
+    command = GetWriterPostsCommand(writer_id=WriterId(value=writer["id"]), status=status)
     bus = get_bus()
     posts = bus.handle(command)
 

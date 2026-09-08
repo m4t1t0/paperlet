@@ -124,13 +124,14 @@ def me() -> tuple:
 
     # Decode token to get user_id
     from backend.src.identity.service import JwtService
+    from backend.src.shared.domain.value_objects import UserId
     jwt_service = JwtService()
     try:
         user_id, _ = jwt_service.verify_access_token(access_token)
     except ValueError as e:
         raise Unauthorized(str(e))
 
-    command = GetProfileCommand(user_id=user_id)
+    command = GetProfileCommand(user_id=UserId(value=user_id))
     user = bus.handle(command)
 
     return jsonify(

@@ -15,8 +15,9 @@ from backend.src.publishing.commands import (
     UpdatePostCommand,
 )
 from backend.src.publishing.domain.model import Post, PostStatus
+from backend.src.shared.domain.events import EventPublisher
 from backend.src.subscriptions.adapters.repository import SubscriptionRepository
-from backend.src.shared.service_layer.messagebus import CommandHandler, MessageBus
+from backend.src.shared.service_layer.messagebus import CommandHandler
 
 
 class PublishingService:
@@ -26,16 +27,16 @@ class PublishingService:
         self,
         post_repo: PostRepository,
         subscription_repo: SubscriptionRepository,
-        message_bus: MessageBus,
+        event_publisher: EventPublisher,
     ) -> None:
         self._post_repo = post_repo
         self._subscription_repo = subscription_repo
-        self._bus = message_bus
+        self._event_publisher = event_publisher
 
     def create_draft(self, command: CreatePostCommand) -> Post:
         """Create a draft post."""
         post = Post.create_draft(
-            writer_id=command.writer_id,
+            writer_id=command.writer_id.value,
             title=command.title,
             preview_content=command.preview_content,
             subscriber_content=command.subscriber_content,
@@ -46,7 +47,7 @@ class PublishingService:
     def create_scheduled(self, command: CreateScheduledPostCommand) -> Post:
         """Create a scheduled post."""
         post = Post.create_scheduled(
-            writer_id=command.writer_id,
+            writer_id=command.writer_id.value,
             title=command.title,
             preview_content=command.preview_content,
             subscriber_content=command.subscriber_content,
@@ -57,47 +58,47 @@ class PublishingService:
 
     def publish_post(self, command: PublishPostCommand) -> Post:
         """Publish a post immediately."""
-        post = self._post_repo.get(command.post_id)
+        post = self._post_repo.get(command.post_id.value)
         if not post:
             raise ValueError("Post not found")
-        if post.writer_id != command.writer_id:
+        if post.writer_id != command.writer_id.value:
             raise ValueError("Not authorized to publish this post")
 
         post.publish()
-        # Publish domain events via message bus
-        self._bus.publish_all(post.clear_events())
+        # Publish domain events via event publisher
+        self._event_publisher.publish_all(post.clear_events())
         return post
 
     def schedule_post(self, command: SchedulePostCommand) -> Post:
         """Schedule a draft post."""
-        post = self._post_repo.get(command.post_id)
+        post = self._post_repo.get(command.post_id.value)
         if not post:
             raise ValueError("Post not found")
-        if post.writer_id != command.writer_id:
+        if post.writer_id != command.writer_id.value:
             raise ValueError("Not authorized to schedule this post")
 
         post.schedule(command.scheduled_for)
-        self._bus.publish_all(post.clear_events())
+        self._event_publisher.publish_all(post.clear_events())
         return post
 
     def cancel_post(self, command: CancelPostCommand) -> Post:
         """Cancel a scheduled post."""
-        post = self._post_repo.get(command.post_id)
+        post = self._post_repo.get(command.post_id.value)
         if not post:
             raise ValueError("Post not found")
-        if post.writer_id != command.writer_id:
+        if post.writer_id != command.writer_id.value:
             raise ValueError("Not authorized to cancel this post")
 
         post.cancel()
-        self._bus.publish_all(post.clear_events())
+        self._event_publisher.publish_all(post.clear_events())
         return post
 
     def update_post(self, command: UpdatePostCommand) -> Post:
         """Update post content."""
-        post = self._post_repo.get(command.post_id)
+        post = self._post_repo.get(command.post_id.value)
         if not post:
             raise ValueError("Post not found")
-        if post.writer_id != command.writer_id:
+        if post.writer_id != command.writer_id.value:
             raise ValueError("Not authorized to update this post")
 
         post.update_content(
@@ -109,14 +110,14 @@ class PublishingService:
 
     def get_post(self, command: GetPostCommand) -> dict:
         """Get post with paywall logic."""
-        post = self._post_repo.get(command.post_id)
+        post = self._post_repo.get(command.post_id.value)
         if not post:
             raise ValueError("Post not found")
 
         # Check if reader has allocation to writer
         has_allocation = False
         if command.reader_id:
-            subscription = self._subscription_repo.get_by_reader(command.reader_id)
+            subscription = self._subscription_repo.get_by_reader(command.reader_id.value)
             if subscription:
                 sub_status = (
                     subscription.status.value
@@ -126,16 +127,16 @@ class PublishingService:
                 if sub_status == "active":
                     has_allocation = subscription.is_writer_allocated(post.writer_id)
 
-        return post.get_content_for_reader(has_allocation, command.reader_id)
+        return post.get_content_for_reader(has_allocation, command.reader_id.value if command.reader_id else None)
 
     def get_writer_posts(self, command: GetWriterPostsCommand) -> list[Post]:
         """Get writer's posts."""
         status = PostStatus(command.status) if command.status else None
-        return self._post_repo.get_by_writer(command.writer_id, status)
+        return self._post_repo.get_by_writer(command.writer_id.value, status)
 
     def get_feed(self, command: GetFeedCommand) -> dict:
         """Get reader's feed of posts from allocated writers."""
-        subscription = self._subscription_repo.get_by_reader(command.reader_id)
+        subscription = self._subscription_repo.get_by_reader(command.reader_id.value)
         if not subscription:
             return {"posts": [], "next_cursor": None}
         sub_status = (
@@ -164,7 +165,7 @@ class PublishingService:
         for post in posts:
             has_allocation = subscription.is_writer_allocated(post.writer_id)
             post_data.append(
-                post.get_content_for_reader(has_allocation, command.reader_id)
+                post.get_content_for_reader(has_allocation, command.reader_id.value)
             )
 
         next_cursor = None

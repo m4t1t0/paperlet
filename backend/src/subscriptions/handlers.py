@@ -30,7 +30,7 @@ class SubscribeHandler(CommandHandler[SubscribeCommand, Subscription]):
 
     def handle(self, command: SubscribeCommand) -> Subscription:
         return self._service.create_subscription(
-            command.reader_id,
+            command.reader_id.value,
             command.payment_method_id,
         )
 
@@ -42,7 +42,7 @@ class GetAllocationsHandler(CommandHandler[GetAllocationsCommand, dict]):
         self._subscription_repo = subscription_repo
 
     def handle(self, command: GetAllocationsCommand) -> dict:
-        subscription = self._subscription_repo.get_by_reader(command.reader_id)
+        subscription = self._subscription_repo.get_by_reader(command.reader_id.value)
         if not subscription:
             settings = get_settings()
             return {
@@ -66,11 +66,11 @@ class AssignAllocationHandler(CommandHandler[AssignAllocationCommand, dict]):
         self._subscription_repo = subscription_repo
 
     def handle(self, command: AssignAllocationCommand) -> dict:
-        subscription = self._subscription_repo.get_by_reader(command.reader_id)
+        subscription = self._subscription_repo.get_by_reader(command.reader_id.value)
         if not subscription:
             raise ValueError("No active subscription found")
 
-        credits_spent = subscription.allocate_writer(command.writer_id)
+        credits_spent = subscription.allocate_writer(command.writer_id.value)
         return {
             "success": True,
             "credits_spent": credits_spent,
@@ -85,12 +85,12 @@ class SwapAllocationHandler(CommandHandler[SwapAllocationCommand, dict]):
         self._subscription_repo = subscription_repo
 
     def handle(self, command: SwapAllocationCommand) -> dict:
-        subscription = self._subscription_repo.get_by_reader(command.reader_id)
+        subscription = self._subscription_repo.get_by_reader(command.reader_id.value)
         if not subscription:
             raise ValueError("No active subscription found")
 
         credits_spent = subscription.swap_writer(
-            command.current_writer_id, command.new_writer_id
+            command.current_writer_id.value, command.new_writer_id.value
         )
         return {
             "success": True,
@@ -106,11 +106,11 @@ class ReleaseAllocationHandler(CommandHandler[ReleaseAllocationCommand, dict]):
         self._subscription_repo = subscription_repo
 
     def handle(self, command: ReleaseAllocationCommand) -> dict:
-        subscription = self._subscription_repo.get_by_reader(command.reader_id)
+        subscription = self._subscription_repo.get_by_reader(command.reader_id.value)
         if not subscription:
             raise ValueError("No active subscription found")
 
-        credits_spent = subscription.release_writer(command.writer_id)
+        credits_spent = subscription.release_writer(command.writer_id.value)
         return {
             "success": True,
             "credits_spent": credits_spent,

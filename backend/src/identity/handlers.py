@@ -9,9 +9,9 @@ from backend.src.identity.commands import (
     RegisterCommand,
 )
 from backend.src.identity.domain.model import User
+from backend.src.identity.domain.repository import UserRepository, SessionRepository
 from backend.src.identity.service import AuthService, JwtService, TokenPair
 from backend.src.shared.service_layer.messagebus import CommandHandler
-from backend.src.identity.adapters.repository import UserRepository, SessionRepository
 
 
 class RegisterHandler(CommandHandler[RegisterCommand, User]):
@@ -66,7 +66,7 @@ class GetProfileHandler(CommandHandler[GetProfileCommand, User]):
         self._user_repo = user_repo
 
     def handle(self, command: GetProfileCommand) -> User:
-        user = self._user_repo.get(command.user_id)
+        user = self._user_repo.get(command.user_id.value)
         if not user:
             raise ValueError("User not found")
         return user

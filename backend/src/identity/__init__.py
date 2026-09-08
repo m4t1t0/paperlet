@@ -7,7 +7,15 @@ from backend.src.identity.commands import (
     RefreshTokenCommand,
     RegisterCommand,
 )
-from backend.src.identity.domain.model import User, UserRole
+from backend.src.identity.domain import (
+    User,
+    UserRole,
+    Session,
+    UserRegistered,
+    UserCapabilitiesChanged,
+    UserRepository,
+    SessionRepository,
+)
 from backend.src.identity.handlers import (
     GetProfileHandler,
     LoginHandler,
@@ -28,6 +36,11 @@ __all__ = [
     "GetProfileHandler",
     "User",
     "UserRole",
+    "Session",
+    "UserRegistered",
+    "UserCapabilitiesChanged",
+    "UserRepository",
+    "SessionRepository",
     "AuthService",
     "JwtService",
     "TokenPair",

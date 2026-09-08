@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session as SQLAlchemySession
 
-from backend.src.identity.adapters.repository import UserRepository, SessionRepository
+from backend.src.identity.domain.repository import UserRepository, SessionRepository
 from backend.src.identity.domain.model import User, Session
 
 
