@@ -84,10 +84,19 @@ class AggregateRoot:
     def __init__(self) -> None:
         self._events: list[DomainEvent] = []
 
+    def _ensure_events(self) -> list[DomainEvent]:
+        # SQLAlchemy imperative mapping bypasses __init__ on load;
+        # keep domain pure (no @reconstructor) via defensive init.
+        events = self.__dict__.get("_events")
+        if events is None:
+            events = []
+            self.__dict__["_events"] = events
+        return events
+
     @property
     def events(self) -> list[DomainEvent]:
         """Get pending events."""
-        return self._events
+        return self._ensure_events()
 
     def add_event(self, event: DomainEvent) -> None:
         """Add a domain event to be published."""
@@ -96,10 +105,10 @@ class AggregateRoot:
             event.aggregate_id = self.id
         if event.aggregate_type is None:
             event.aggregate_type = self.__class__.__name__
-        self._events.append(event)
+        self._ensure_events().append(event)
 
     def clear_events(self) -> list[DomainEvent]:
         """Clear and return pending events."""
-        events = self._events
-        self._events = []
+        events = self._ensure_events()
+        self.__dict__["_events"] = []
         return events

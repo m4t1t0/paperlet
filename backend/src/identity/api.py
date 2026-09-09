@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 from flask import Blueprint, jsonify, request
-from werkzeug.exceptions import BadRequest, Unauthorized
+from werkzeug.exceptions import BadRequest
 
+from backend.src.identity.api_auth import get_bearer_user_id
 from backend.src.identity.commands import (
     GetProfileCommand,
     LoginCommand,
@@ -115,21 +116,10 @@ def refresh() -> tuple:
 @auth_bp.route("/me", methods=["GET"])
 def me() -> tuple:
     """Get current user profile."""
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise Unauthorized("Missing or invalid Authorization header")
-
-    access_token = auth_header[7:]
+    user_id = get_bearer_user_id()
     bus = get_bus()
 
-    # Decode token to get user_id
-    from backend.src.identity.service import JwtService
     from backend.src.shared.domain.value_objects import UserId
-    jwt_service = JwtService()
-    try:
-        user_id, _ = jwt_service.verify_access_token(access_token)
-    except ValueError as e:
-        raise Unauthorized(str(e))
 
     command = GetProfileCommand(user_id=UserId(value=user_id))
     user = bus.handle(command)

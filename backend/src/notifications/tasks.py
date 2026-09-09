@@ -30,17 +30,14 @@ celery_app.conf.update(
 )
 
 
-@celery_app.task(
-    bind=True,
-    max_retries=5,
-    default_retry_delay=60,  # 1 minute
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=3600,  # 1 hour max
-    retry_jitter=True,
-)
+@celery_app.task(bind=True, max_retries=5)
 def send_post_published_emails(self, post_id: str) -> dict:
-    """Send post published emails in batches."""
+    """Single email task: fetch post via repo, branch on has_allocation.
+
+    Retry schedule (explicit): 1m, 5m, 15m, 1h, 6h (max 5 retries).
+    """
+    from celery.exceptions import Retry
+
     from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
     from backend.src.identity.adapters.sqlalchemy_repository import (
         SqlAlchemyUserRepository,
@@ -48,56 +45,86 @@ def send_post_published_emails(self, post_id: str) -> dict:
     from backend.src.publishing.adapters.sqlalchemy_repository import (
         SqlAlchemyPostRepository,
     )
+    from backend.src.notifications.domain.model import EmailRecipient
     from backend.src.notifications.service import NotificationService
     from backend.src.notifications.adapters.stub_sender import StubEmailSender
 
-    post_uuid = UUID(post_id)
+    retry_delays = [60, 300, 900, 3600, 21600]  # 1m, 5m, 15m, 1h, 6h
 
-    with SqlAlchemyUnitOfWork() as uow:
-        post_repo = SqlAlchemyPostRepository(uow.session)
-        post = post_repo.get(post_uuid)
-        if not post:
-            return {"status": "error", "message": "Post not found"}
+    def _fail(exc: Exception) -> dict:
+        retries = self.request.retries
+        if retries < len(retry_delays):
+            raise self.retry(
+                exc=exc, countdown=retry_delays[retries], max_retries=5
+            )
+        raise exc
 
-        if post.status.value != "published":
-            return {"status": "skipped", "message": "Post not published"}
+    try:
+        post_uuid = UUID(post_id)
+    except ValueError as exc:
+        return {"status": "error", "message": f"Invalid post_id: {exc}"}
 
-        user_repo = SqlAlchemyUserRepository(uow.session)
-        writer = user_repo.get(post.writer_id)
-        if not writer:
-            return {"status": "error", "message": "Writer not found"}
+    try:
+        with SqlAlchemyUnitOfWork() as uow:
+            post_repo = SqlAlchemyPostRepository(uow.session)
+            post = post_repo.get(post_uuid)
+            if not post:
+                return {"status": "error", "message": "Post not found"}
 
-        # Get subscribers and followers from read models
-        subscribers = get_subscribers_with_allocation(post.writer_id)
-        followers = get_followers_without_allocation(post.writer_id)
+            if post.status.value != "published":
+                return {"status": "skipped", "message": "Post not published"}
 
-        sender = StubEmailSender()
-        service = NotificationService(sender)
+            user_repo = SqlAlchemyUserRepository(uow.session)
+            writer = user_repo.get(post.writer_id)
+            if not writer:
+                return {"status": "error", "message": "Writer not found"}
 
-        service.send_post_published_notifications(
-            post=post,
-            writer=writer,
-            subscribers_with_allocation=subscribers,
-            followers_without_allocation=followers,
-        )
+            # Fetch recipients from read models (worker fetches full post + users)
+            subscribers = get_subscribers_with_allocation(post.writer_id)
+            followers = get_followers_without_allocation(post.writer_id)
 
-        return {
-            "status": "sent",
-            "post_id": str(post_id),
-            "subscribers_notified": len(subscribers),
-            "followers_notified": len(followers),
-            "emails_logged": len(sender.sent_emails),
-        }
+            recipients = [
+                EmailRecipient(
+                    user_id=user.id,
+                    email=user.email,
+                    has_allocation=True,
+                    writer_id=writer.id,
+                )
+                for user, _ in subscribers
+            ] + [
+                EmailRecipient(
+                    user_id=user.id,
+                    email=user.email,
+                    has_allocation=False,
+                    writer_id=writer.id,
+                )
+                for user in followers
+            ]
+
+            sender = StubEmailSender()
+            service = NotificationService(sender)
+            service.send_for_post(post=post, writer=writer, recipients=recipients)
+
+            return {
+                "status": "sent",
+                "post_id": str(post_id),
+                "subscribers_notified": len(subscribers),
+                "followers_notified": len(followers),
+                "emails_logged": len(sender.sent_emails),
+            }
+    except Retry:
+        raise
+    except Exception as exc:  # noqa: BLE001 - retry with explicit backoff
+        return _fail(exc)
 
 
 @celery_app.task
 def process_scheduled_posts() -> dict:
-    """Process posts scheduled for publishing now."""
+    """Beat scheduler: publish due posts, then enqueue single email task."""
     from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
     from backend.src.publishing.adapters.sqlalchemy_repository import (
         SqlAlchemyPostRepository,
     )
-    from backend.src.shared.service_layer.messagebus import MessageBus
 
     with SqlAlchemyUnitOfWork() as uow:
         post_repo = SqlAlchemyPostRepository(uow.session)
@@ -107,10 +134,8 @@ def process_scheduled_posts() -> dict:
         for post in scheduled_posts:
             post.publish()
             uow.commit()
-            # Publish domain event
-            bus = MessageBus()
-            bus.publish_all(post.events)
-            # Trigger email task
+            post.clear_events()  # consumed here; email path is the task below
+            # Single email path (post_id only)
             send_post_published_emails.delay(str(post.id))
             results.append(str(post.id))
 

@@ -69,8 +69,6 @@ class User(AggregateRoot):
     updated_at: datetime = field(default_factory=datetime.utcnow)
     is_active: bool = True
     _events: list = field(default_factory=list, init=False, repr=False)
-    # Internal field for ORM mapping - stores roles as JSON
-    _roles_json: str = field(default="[]", init=False, repr=False)
 
     def __post_init__(self) -> None:
         super().__init__()
@@ -149,23 +147,3 @@ class User(AggregateRoot):
         from passlib.hash import bcrypt
 
         return bcrypt.hash(password)
-
-    # ORM serialization helpers
-    def _sync_roles_to_json(self) -> None:
-        """Sync roles set to JSON string for ORM persistence."""
-        import json
-
-        self._roles_json = json.dumps([r.value for r in self.roles])
-
-    def _load_roles_from_json(self) -> None:
-        """Load roles set from JSON string after ORM load."""
-        import json
-
-        if not self._roles_json:
-            self.roles = {UserRole.READER}
-        else:
-            try:
-                role_values = json.loads(self._roles_json)
-                self.roles = {UserRole(r) for r in role_values}
-            except (json.JSONDecodeError, ValueError):
-                self.roles = {UserRole.READER}

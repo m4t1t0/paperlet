@@ -17,6 +17,23 @@ from backend.src.subscriptions.domain.model import Subscription
 from backend.src.subscriptions.service import SubscriptionService
 
 
+def _persist_allocation_log(subscription_repo, subscription: Subscription) -> None:
+    """Write pending AllocationChanged events to allocation_log table.
+
+    Direct persistence (in addition to event-bus projection) because command
+    handlers mutate aggregates without publishing via the bus in v1.
+    """
+    from backend.src.subscriptions.adapters.read_model import AllocationLogProjection
+
+    session = getattr(subscription_repo, "_session", None)
+    if session is None:
+        return
+    projector = AllocationLogProjection(session)
+    for event in subscription.events:
+        if event.__class__.__name__ == "AllocationChanged":
+            projector.handle(event)
+
+
 class SubscribeHandler(CommandHandler[SubscribeCommand, Subscription]):
     """Handler for creating subscriptions."""
 
@@ -71,6 +88,7 @@ class AssignAllocationHandler(CommandHandler[AssignAllocationCommand, dict]):
             raise ValueError("No active subscription found")
 
         credits_spent = subscription.allocate_writer(command.writer_id.value)
+        _persist_allocation_log(self._subscription_repo, subscription)
         return {
             "success": True,
             "credits_spent": credits_spent,
@@ -92,6 +110,7 @@ class SwapAllocationHandler(CommandHandler[SwapAllocationCommand, dict]):
         credits_spent = subscription.swap_writer(
             command.current_writer_id.value, command.new_writer_id.value
         )
+        _persist_allocation_log(self._subscription_repo, subscription)
         return {
             "success": True,
             "credits_spent": credits_spent,
@@ -111,6 +130,7 @@ class ReleaseAllocationHandler(CommandHandler[ReleaseAllocationCommand, dict]):
             raise ValueError("No active subscription found")
 
         credits_spent = subscription.release_writer(command.writer_id.value)
+        _persist_allocation_log(self._subscription_repo, subscription)
         return {
             "success": True,
             "credits_spent": credits_spent,

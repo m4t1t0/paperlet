@@ -20,25 +20,98 @@ from backend.src.publishing.adapters.orm import (
 )
 
 
+def _decode_sub_unverified(token: str) -> str | None:
+    """Decode JWT `sub` without expiry verification (rate limiting / logging only)."""
+    try:
+        import jwt
+
+        settings = get_settings()
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[settings.jwt_algorithm],
+            options={"verify_exp": False},
+        )
+        return payload.get("sub")
+    except Exception:
+        return None
+
+
+def _problem(title: str, detail: str, code: str, status: int) -> tuple:
+    """RFC 7807 hybrid problem response (custom `code` + `message` alias)."""
+    slug = title.lower().replace(" ", "-")
+    return jsonify(
+        {
+            "type": f"https://paperlet.local/problems/{slug}",
+            "title": title,
+            "status": status,
+            "detail": detail,
+            "message": detail,  # backwards-compatible alias
+            "code": code,
+        }
+    ), status
+
+
+def _check_database() -> dict:
+    """Check database connectivity."""
+    try:
+        from sqlalchemy import text
+
+        with SqlAlchemyUnitOfWork() as uow:
+            uow.session.execute(text("SELECT 1"))
+        return {"ok": True, "detail": "connected"}
+    except Exception as e:
+        return {"ok": False, "detail": f"disconnected: {e}"}
+
+
+def _check_redis() -> dict:
+    """Check Redis connectivity."""
+    try:
+        import redis
+
+        client = redis.Redis.from_url(
+            get_settings().redis_url, socket_connect_timeout=2
+        )
+        client.ping()
+        return {"ok": True, "detail": "connected"}
+    except Exception as e:
+        return {"ok": False, "detail": f"disconnected: {e}"}
+
+
+def _check_migrations() -> dict:
+    """Check applied migrations match alembic heads (skipped on SQLite bootstrap)."""
+    try:
+        settings = get_settings()
+        if "sqlite" in settings.database_url:
+            return {"ok": True, "detail": "skipped (sqlite bootstrap)", "skipped": True}
+        from pathlib import Path
+
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+        from sqlalchemy import text
+
+        repo_root = Path(__file__).resolve().parent
+        cfg = Config()
+        cfg.set_main_option("script_location", str(repo_root / "backend" / "alembic"))
+        heads = set(ScriptDirectory.from_config(cfg).get_heads())
+        with SqlAlchemyUnitOfWork() as uow:
+            rows = uow.session.execute(text("SELECT version_num FROM alembic_version")).all()
+        applied = {r[0] for r in rows}
+        if heads <= applied:
+            return {"ok": True, "detail": f"up to date ({len(applied)} applied)"}
+        missing = sorted(heads - applied)
+        return {"ok": False, "detail": f"pending migrations: {missing}"}
+    except Exception as e:
+        return {"ok": False, "detail": f"check failed: {e}"}
+
+
 def get_user_id_from_jwt() -> str:
-    """Extract user ID from JWT token for rate limiting."""
+    """Extract user ID from JWT token for rate limiting (IP fallback)."""
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        try:
-            import jwt
-            from backend.src.shared.config import get_settings
-
-            settings = get_settings()
-            payload = jwt.decode(
-                token,
-                settings.secret_key,
-                algorithms=[settings.jwt_algorithm],
-                options={"verify_exp": False},  # Don't verify expiry for rate limiting
-            )
-            return f"user:{payload.get('sub', 'unknown')}"
-        except Exception:
-            pass
+        sub = _decode_sub_unverified(auth_header[7:])
+        if sub:
+            return f"user:{sub}"
     # Fallback to IP-based rate limiting
     return f"ip:{get_remote_address()}"
 
@@ -93,19 +166,9 @@ def create_app(config_overrides: dict | None = None) -> Flask:
         # Also extract user_id from JWT for logging
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            try:
-                import jwt
-
-                payload = jwt.decode(
-                    token,
-                    settings.secret_key,
-                    algorithms=[settings.jwt_algorithm],
-                    options={"verify_exp": False},
-                )
-                g.user_id = payload.get("sub")
-            except Exception:
-                pass
+            sub = _decode_sub_unverified(auth_header[7:])
+            if sub:
+                g.user_id = sub
 
     # Initialize mappers
     start_identity_mappers()
@@ -118,10 +181,12 @@ def create_app(config_overrides: dict | None = None) -> Flask:
 
     # Register blueprints
     from backend.src.identity.api import auth_bp
+    from backend.src.identity.writers_api import writers_bp
     from backend.src.subscriptions.api import subscriptions_bp
     from backend.src.publishing.api import posts_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(writers_bp)
     app.register_blueprint(subscriptions_bp)
     app.register_blueprint(posts_bp)
 
@@ -132,55 +197,35 @@ def create_app(config_overrides: dict | None = None) -> Flask:
 
     @app.route("/health/ready")
     def ready() -> tuple:
-        try:
-            with SqlAlchemyUnitOfWork() as uow:
-                uow.session.execute("SELECT 1")
-            return jsonify({"status": "ready", "database": "connected"}), 200
-        except Exception as e:
-            return jsonify(
-                {"status": "not ready", "database": "disconnected", "error": str(e)}
-            ), 503
+        checks = {
+            "database": _check_database(),
+            "redis": _check_redis(),
+            "migrations": _check_migrations(),
+        }
+        ready = all(c["ok"] for c in checks.values())
+        status = "ready" if ready else "not ready"
+        code = 200 if ready else 503
+        return jsonify({"status": status, "checks": checks}), code
 
-    # Error handlers
+    # Error handlers (RFC 7807 hybrid: type/title/status/detail + custom code;
+    # `message` kept as alias of `detail` for backwards compatibility)
     @app.errorhandler(400)
     def bad_request(e) -> tuple:
-        return jsonify(
-            {
-                "error": "Bad Request",
-                "message": str(e),
-                "code": "BAD_REQUEST",
-            }
-        ), 400
+        return _problem("Bad Request", str(e), "BAD_REQUEST", 400)
 
     @app.errorhandler(401)
     def unauthorized(e) -> tuple:
-        return jsonify(
-            {
-                "error": "Unauthorized",
-                "message": str(e),
-                "code": "UNAUTHORIZED",
-            }
-        ), 401
+        return _problem("Unauthorized", str(e), "UNAUTHORIZED", 401)
 
     @app.errorhandler(404)
     def not_found(e) -> tuple:
-        return jsonify(
-            {
-                "error": "Not Found",
-                "message": str(e),
-                "code": "NOT_FOUND",
-            }
-        ), 404
+        return _problem("Not Found", str(e), "NOT_FOUND", 404)
 
     @app.errorhandler(500)
     def internal_error(e) -> tuple:
-        return jsonify(
-            {
-                "error": "Internal Server Error",
-                "message": "An unexpected error occurred",
-                "code": "INTERNAL_ERROR",
-            }
-        ), 500
+        return _problem(
+            "Internal Server Error", "An unexpected error occurred", "INTERNAL_ERROR", 500
+        )
 
     # Register command handlers
     _register_handlers(message_bus)
@@ -188,7 +233,7 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     return app
 
 
-def _with_uow(bus: MessageBus, handler_factory):
+def _command_handler_with_uow(bus: MessageBus, handler_factory):
     """Decorator that provides UoW lifecycle management for command handlers."""
 
     def wrapper(command):
@@ -226,7 +271,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.identity.commands", fromlist=["RegisterCommand"]
         ).RegisterCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus,
             lambda uow, b: RegisterHandler(
                 SqlAlchemyUserRepository(uow.session),
@@ -239,7 +284,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.identity.commands", fromlist=["LoginCommand"]
         ).LoginCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus,
             lambda uow, b: LoginHandler(
                 SqlAlchemyUserRepository(uow.session),
@@ -252,7 +297,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.identity.commands", fromlist=["RefreshTokenCommand"]
         ).RefreshTokenCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus,
             lambda uow, b: RefreshTokenHandler(
                 SqlAlchemyUserRepository(uow.session),
@@ -265,7 +310,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.identity.commands", fromlist=["GetProfileCommand"]
         ).GetProfileCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus, lambda uow, b: GetProfileHandler(SqlAlchemyUserRepository(uow.session))
         ),
     )
@@ -274,6 +319,7 @@ def _register_handlers(bus: MessageBus) -> None:
     from backend.src.subscriptions.handlers import (
         AssignAllocationHandler,
         GetAllocationsHandler,
+        HandlePaymentWebhookHandler,
         ReleaseAllocationHandler,
         SubscribeHandler,
         SwapAllocationHandler,
@@ -288,7 +334,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.subscriptions.commands", fromlist=["SubscribeCommand"]
         ).SubscribeCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus,
             lambda uow, b: SubscribeHandler(
                 SqlAlchemySubscriptionRepository(uow.session),
@@ -302,7 +348,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.subscriptions.commands", fromlist=["GetAllocationsCommand"]
         ).GetAllocationsCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus,
             lambda uow, b: GetAllocationsHandler(
                 SqlAlchemySubscriptionRepository(uow.session)
@@ -313,7 +359,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.subscriptions.commands", fromlist=["AssignAllocationCommand"]
         ).AssignAllocationCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus,
             lambda uow, b: AssignAllocationHandler(
                 SqlAlchemySubscriptionRepository(uow.session)
@@ -324,7 +370,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.subscriptions.commands", fromlist=["SwapAllocationCommand"]
         ).SwapAllocationCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus,
             lambda uow, b: SwapAllocationHandler(
                 SqlAlchemySubscriptionRepository(uow.session)
@@ -335,23 +381,38 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.subscriptions.commands", fromlist=["ReleaseAllocationCommand"]
         ).ReleaseAllocationCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus,
             lambda uow, b: ReleaseAllocationHandler(
                 SqlAlchemySubscriptionRepository(uow.session)
             ),
         ),
     )
+    bus.register_command(
+        __import__(
+            "backend.src.subscriptions.commands", fromlist=["HandlePaymentWebhookCommand"]
+        ).HandlePaymentWebhookCommand,
+        _command_handler_with_uow(
+            bus,
+            lambda uow, b: HandlePaymentWebhookHandler(
+                SqlAlchemySubscriptionRepository(uow.session),
+                SubscriptionService(
+                    SqlAlchemySubscriptionRepository(uow.session), create_payment_gateway()
+                ),
+            ),
+        ),
+    )
 
 # Read model projections for notifications
     from backend.src.subscriptions.adapters.read_model import (
+        AllocationLogProjection,
         WriterSubscribersProjection,
         SubscriptionStatusProjection,
     )
     from backend.src.subscriptions.domain.model import AllocationChanged
     from backend.src.shared.domain.events import DomainEvent, EventHandler
 
-    class _EventHandlerWrapper(EventHandler):
+    class _UowEventHandler(EventHandler):
         """Wrapper to adapt function to EventHandler protocol."""
 
         def __init__(self, handler_factory):
@@ -370,11 +431,15 @@ def _register_handlers(bus: MessageBus) -> None:
     # Register event handlers for read model projections
     bus.register_event_handler(
         AllocationChanged,
-        _EventHandlerWrapper(lambda uow: WriterSubscribersProjection(uow.session)),
+        _UowEventHandler(lambda uow: WriterSubscribersProjection(uow.session)),
+    )
+    bus.register_event_handler(
+        AllocationChanged,
+        _UowEventHandler(lambda uow: AllocationLogProjection(uow.session)),
     )
     bus.register_event_handler(
         DomainEvent,
-        _EventHandlerWrapper(lambda uow: SubscriptionStatusProjection(uow.session)),
+        _UowEventHandler(lambda uow: SubscriptionStatusProjection(uow.session)),
     )
 
     # Publishing
@@ -403,7 +468,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.publishing.commands", fromlist=["CreatePostCommand"]
         ).CreatePostCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus, lambda uow, b: CreatePostHandler(_make_publishing_service(uow, b))
         ),
     )
@@ -411,7 +476,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.publishing.commands", fromlist=["CreateScheduledPostCommand"]
         ).CreateScheduledPostCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus,
             lambda uow, b: CreateScheduledPostHandler(_make_publishing_service(uow, b)),
         ),
@@ -420,7 +485,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.publishing.commands", fromlist=["PublishPostCommand"]
         ).PublishPostCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus, lambda uow, b: PublishPostHandler(_make_publishing_service(uow, b))
         ),
     )
@@ -428,7 +493,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.publishing.commands", fromlist=["SchedulePostCommand"]
         ).SchedulePostCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus, lambda uow, b: SchedulePostHandler(_make_publishing_service(uow, b))
         ),
     )
@@ -436,7 +501,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.publishing.commands", fromlist=["CancelPostCommand"]
         ).CancelPostCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus, lambda uow, b: CancelPostHandler(_make_publishing_service(uow, b))
         ),
     )
@@ -444,7 +509,7 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.publishing.commands", fromlist=["UpdatePostCommand"]
         ).UpdatePostCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus, lambda uow, b: UpdatePostHandler(_make_publishing_service(uow, b))
         ),
     )
@@ -452,13 +517,13 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.publishing.commands", fromlist=["GetPostCommand"]
         ).GetPostCommand,
-        _with_uow(bus, lambda uow, b: GetPostHandler(_make_publishing_service(uow, b))),
+        _command_handler_with_uow(bus, lambda uow, b: GetPostHandler(_make_publishing_service(uow, b))),
     )
     bus.register_command(
         __import__(
             "backend.src.publishing.commands", fromlist=["GetWriterPostsCommand"]
         ).GetWriterPostsCommand,
-        _with_uow(
+        _command_handler_with_uow(
             bus, lambda uow, b: GetWriterPostsHandler(_make_publishing_service(uow, b))
         ),
     )
@@ -466,18 +531,18 @@ def _register_handlers(bus: MessageBus) -> None:
         __import__(
             "backend.src.publishing.commands", fromlist=["GetFeedCommand"]
         ).GetFeedCommand,
-        _with_uow(bus, lambda uow, b: GetFeedHandler(_make_publishing_service(uow, b))),
+        _command_handler_with_uow(bus, lambda uow, b: GetFeedHandler(_make_publishing_service(uow, b))),
     )
 
     # Event handlers for Celery tasks
     from backend.src.publishing.domain.model import PostPublished
     from backend.src.notifications.tasks import send_post_published_emails
 
-    class _PostPublishedHandler(EventHandler):
+    class _EnqueuePostEmailsHandler(EventHandler):
         def handle(self, event: PostPublished) -> None:
             send_post_published_emails.delay(str(event.post_id))
 
-    bus.register_event_handler(PostPublished, _PostPublishedHandler())
+    bus.register_event_handler(PostPublished, _EnqueuePostEmailsHandler())
 
 
 # Only create global app when not testing

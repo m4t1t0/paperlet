@@ -31,10 +31,14 @@ class SubscriptionService:
         if existing and existing.status == SubscriptionStatus.ACTIVE:
             raise ValueError("Reader already has an active subscription")
 
+        # Validate configured price as Money (rejects negative/NaN config).
+        # The gateway itself is keyed by opaque price_id (Stripe-ready).
+        _price = self._settings.subscription_price
+
         # Create subscription via payment gateway
         result = self._payment_gateway.create_subscription(
             customer_id=str(reader_id),
-            price_id=self._settings.subscription_monthly_price_eur,
+            price_id=self._settings.subscription_price_id,
             payment_method_id=payment_method_id,
         )
 
@@ -47,16 +51,37 @@ class SubscriptionService:
         self._subscription_repo.add(subscription)
         return subscription
 
+    # Stripe-canonical names with legacy mock aliases.
+    _WEBHOOK_ROUTES = {
+        "customer.subscription.created": "_handle_subscription_created",
+        "subscription.created": "_handle_subscription_created",
+        "customer.subscription.updated": "_handle_subscription_updated",
+        "subscription.updated": "_handle_subscription_updated",
+        "customer.subscription.deleted": "_handle_subscription_canceled",
+        "subscription.canceled": "_handle_subscription_canceled",
+        "invoice.payment_failed": "_handle_payment_failed",
+        "invoice.payment_succeeded": "_handle_payment_succeeded",
+    }
+
     def handle_webhook(self, event_type: str, payload: dict) -> None:
-        """Handle payment gateway webhook."""
-        if event_type == "subscription.updated":
-            self._handle_subscription_updated(payload)
-        elif event_type == "subscription.canceled":
-            self._handle_subscription_canceled(payload)
-        elif event_type == "invoice.payment_failed":
-            self._handle_payment_failed(payload)
-        elif event_type == "invoice.payment_succeeded":
-            self._handle_payment_succeeded(payload)
+        """Handle payment gateway webhook (Stripe + legacy mock names)."""
+        handler_name = self._WEBHOOK_ROUTES.get(event_type)
+        if handler_name is None:
+            return
+        getattr(self, handler_name)(payload)
+
+    def _handle_subscription_created(self, payload: dict) -> None:
+        """Handle subscription created webhook (Stripe customer.subscription.created)."""
+        external_id = payload.get("subscription_id") or payload.get("id")
+        status = payload.get("status", "active")
+        if not external_id:
+            return
+        subscription = self._subscription_repo.get_by_external_id(external_id)
+        if subscription:
+            try:
+                subscription.update_status(SubscriptionStatus(status))
+            except ValueError:
+                subscription.update_status(SubscriptionStatus.ACTIVE)
 
     def _handle_subscription_updated(self, payload: dict) -> None:
         """Handle subscription updated webhook."""

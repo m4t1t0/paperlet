@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 from flask import Blueprint, jsonify, request
-from werkzeug.exceptions import BadRequest, Unauthorized
+from werkzeug.exceptions import BadRequest
 from uuid import UUID
 
-from backend.src.identity.service import JwtService
+from backend.src.identity.api_auth import get_current_user
 from backend.src.shared.domain.value_objects import ReaderId, WriterId
 from backend.src.shared.service_layer.messagebus import MessageBus
 from backend.src.subscriptions.commands import (
     AssignAllocationCommand,
     GetAllocationsCommand,
+    HandlePaymentWebhookCommand,
     ReleaseAllocationCommand,
     SubscribeCommand,
     SwapAllocationCommand,
@@ -26,32 +27,6 @@ def get_bus() -> MessageBus:
     from flask import current_app
 
     return current_app.message_bus
-
-
-def get_current_user() -> dict:
-    """Get current user from Authorization header."""
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise Unauthorized("Missing or invalid Authorization header")
-
-    access_token = auth_header[7:]
-    jwt_service = JwtService()
-    try:
-        user_id, _ = jwt_service.verify_access_token(access_token)
-    except ValueError as e:
-        raise Unauthorized(str(e))
-
-    from backend.src.identity.adapters.sqlalchemy_repository import (
-        SqlAlchemyUserRepository,
-    )
-    from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
-
-    with SqlAlchemyUnitOfWork() as uow:
-        user_repo = SqlAlchemyUserRepository(uow.session)
-        user = user_repo.get(user_id)
-        if not user or not user.is_active:
-            raise Unauthorized("User not found or inactive")
-        return {"id": user.id}
 
 
 @subscriptions_bp.route("/subscribe", methods=["POST"])
@@ -153,3 +128,22 @@ def release_allocation(writer_id: str) -> tuple:
         raise BadRequest(str(e))
 
     return jsonify(result)
+
+
+@subscriptions_bp.route("/webhook", methods=["POST"])
+def payment_webhook() -> tuple:
+    """Public payment gateway webhook (Stripe-ready, no auth)."""
+    data = request.get_json() or {}
+    # Support both internal {event_type, payload} and Stripe {type, data} shapes
+    event_type = data.get("event_type") or data.get("type")
+    payload = data.get("payload")
+    if payload is None:
+        stripe_data = data.get("data") or {}
+        payload = stripe_data.get("object", {}) if isinstance(stripe_data, dict) else {}
+    if not event_type:
+        raise BadRequest("event_type is required")
+
+    command = HandlePaymentWebhookCommand(event_type=event_type, payload=payload or {})
+    bus = get_bus()
+    bus.handle(command)
+    return jsonify({"received": True})

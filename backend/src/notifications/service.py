@@ -28,35 +28,26 @@ class NotificationService:
         self._renderer = EmailTemplateRenderer()
         self._settings = get_settings()
 
-    def send_post_published_notifications(
+    def send_for_post(
         self,
         post: "Post",
         writer: "User",
-        subscribers_with_allocation: list[tuple["User", "Subscription"]],
-        followers_without_allocation: list["User"],
+        recipients: list[EmailRecipient],
     ) -> None:
-        """Send post published notifications to two groups."""
-        # Group 1: Subscribers with allocation - full post
-        allocation_recipients = [
-            EmailRecipient(
-                user_id=user.id,
-                email=user.email,
-                has_allocation=True,
-                writer_id=writer.id,
-            )
-            for user, _ in subscribers_with_allocation
-        ]
+        """Single entry point: branch per-recipient on has_allocation flag."""
+        with_allocation = [r for r in recipients if r.has_allocation]
+        without_allocation = [r for r in recipients if not r.has_allocation]
 
-        if allocation_recipients:
+        if with_allocation:
             subject, html = self._renderer.render_post_published_full(
-                recipient=allocation_recipients[0],  # Template uses first for rendering
+                recipient=with_allocation[0],
                 post_title=post.title,
                 post_preview=post.preview_content,
                 post_full=post.subscriber_content,
-                writer_name=writer.email,  # Use email as name for now
+                writer_name=writer.email,
             )
             self._sender.send_batch(
-                allocation_recipients,
+                with_allocation,
                 "post_published_full",
                 {
                     "subject": subject,
@@ -67,28 +58,17 @@ class NotificationService:
                 },
             )
 
-        # Group 2: Followers without allocation - preview + upsell
-        preview_recipients = [
-            EmailRecipient(
-                user_id=user.id,
-                email=user.email,
-                has_allocation=False,
-                writer_id=writer.id,
-            )
-            for user in followers_without_allocation
-        ]
-
-        if preview_recipients:
+        if without_allocation:
             subscribe_url = f"{self._settings.api_prefix}/subscriptions/subscribe"
             subject, html = self._renderer.render_post_published_preview(
-                recipient=preview_recipients[0],
+                recipient=without_allocation[0],
                 post_title=post.title,
                 post_preview=post.preview_content,
                 writer_name=writer.email,
                 subscribe_url=subscribe_url,
             )
             self._sender.send_batch(
-                preview_recipients,
+                without_allocation,
                 "post_published_preview",
                 {
                     "subject": subject,
@@ -99,6 +79,33 @@ class NotificationService:
                     "subscribe_url": subscribe_url,
                 },
             )
+
+    def send_post_published_notifications(
+        self,
+        post: "Post",
+        writer: "User",
+        subscribers_with_allocation: list[tuple["User", "Subscription"]],
+        followers_without_allocation: list["User"],
+    ) -> None:
+        """Legacy split-list entry: unify then delegate to send_for_post."""
+        recipients = [
+            EmailRecipient(
+                user_id=user.id,
+                email=user.email,
+                has_allocation=True,
+                writer_id=writer.id,
+            )
+            for user, _ in subscribers_with_allocation
+        ] + [
+            EmailRecipient(
+                user_id=user.id,
+                email=user.email,
+                has_allocation=False,
+                writer_id=writer.id,
+            )
+            for user in followers_without_allocation
+        ]
+        self.send_for_post(post, writer, recipients)
 
 
 def get_subscribers_with_allocation(

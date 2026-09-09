@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 from flask import Blueprint, jsonify, request
-from werkzeug.exceptions import BadRequest, Unauthorized
+from werkzeug.exceptions import BadRequest, NotFound
 from uuid import UUID
 
-from backend.src.identity.service import JwtService
+from backend.src.identity.api_auth import (
+    get_current_reader,
+    get_current_writer,
+    get_optional_reader,
+)
 from backend.src.shared.domain.value_objects import PostId, ReaderId, WriterId
 from backend.src.shared.service_layer.messagebus import MessageBus
 from backend.src.publishing.commands import (
@@ -28,48 +32,6 @@ def get_bus() -> MessageBus:
     from flask import current_app
 
     return current_app.message_bus
-
-
-def get_current_user(require_writer: bool = False) -> dict:
-    """Get current user from Authorization header."""
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise Unauthorized("Missing or invalid Authorization header")
-
-    access_token = auth_header[7:]
-    jwt_service = JwtService()
-    try:
-        user_id, _ = jwt_service.verify_access_token(access_token)
-    except ValueError as e:
-        raise Unauthorized(str(e))
-
-    from backend.src.identity.adapters.sqlalchemy_repository import (
-        SqlAlchemyUserRepository,
-    )
-    from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
-
-    with SqlAlchemyUnitOfWork() as uow:
-        user_repo = SqlAlchemyUserRepository(uow.session)
-        user = user_repo.get(user_id)
-        if not user or not user.is_active:
-            raise Unauthorized("User not found or inactive")
-        if require_writer and not user.is_writer():
-            raise Unauthorized("Writer capability required")
-        return {
-            "id": user.id,
-            "is_writer": user.is_writer(),
-            "is_reader": user.is_reader(),
-        }
-
-
-def get_current_reader() -> dict:
-    """Get current user as reader (no writer requirement)."""
-    return get_current_user(require_writer=False)
-
-
-def get_current_writer() -> dict:
-    """Get current user as writer."""
-    return get_current_user(require_writer=True)
 
 
 @posts_bp.route("", methods=["POST"])
@@ -250,17 +212,25 @@ def update_post(post_id: str) -> tuple:
 
 @posts_bp.route("/<post_id>", methods=["GET"])
 def get_post(post_id: str) -> tuple:
-    """Get a single post with paywall logic."""
-    reader = get_current_reader()
+    """Get a single post with paywall logic (public preview, no auth required)."""
+    reader = get_optional_reader()
 
     try:
         post_uuid = UUID(post_id)
     except ValueError:
         raise BadRequest("Invalid post_id format")
 
-    command = GetPostCommand(post_id=PostId(value=post_uuid), reader_id=ReaderId(value=reader["id"]))
+    command = GetPostCommand(
+        post_id=PostId(value=post_uuid),
+        reader_id=ReaderId(value=reader["id"]) if reader else None,
+    )
     bus = get_bus()
-    result = bus.handle(command)
+    try:
+        result = bus.handle(command)
+    except ValueError as e:
+        if "not found" in str(e).lower():
+            raise NotFound(str(e))
+        raise BadRequest(str(e))
 
     return jsonify(result)
 

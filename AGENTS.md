@@ -31,7 +31,7 @@ pip install -r requirements.txt
 - `PROMPT.md` - Product spec (authoritative)
 - `CONTEXT.md` - Ubiquitous language glossary
 - `docs/adr/` - Architecture Decision Records
-- `backend/src/identity/` - Authentication & User Management (single User, Reader/Writer capabilities, JWT)
+- `backend/src/identity/` - Authentication & User Management (single User, Reader/Writer capabilities, JWT); `api_auth.py` shared Flask auth helpers; `writers_api.py` Writers Catalog (`GET /api/v1/writers`)
 - `backend/src/subscriptions/` - Subscription, Allocation Slots (5), Change Credits (2), config-driven
 - `backend/src/publishing/` - Posts with preview_content / subscriber_content, scheduled_for, archival access
 - `backend/src/notifications/` - PostPublished handling, stub log v1 (Mailchimp later)

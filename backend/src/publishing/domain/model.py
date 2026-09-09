@@ -7,8 +7,6 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy.orm import reconstructor
-
 from backend.src.shared.domain.events import AggregateRoot, DomainEvent
 
 
@@ -22,11 +20,9 @@ class PostStatus(str, Enum):
 
 
 class PostPublished(DomainEvent):
-    """Event emitted when a post is published."""
+    """Event emitted when a post is published (carries post_id only)."""
 
     post_id: UUID
-    writer_id: UUID
-    published_at: datetime
 
 
 class PostScheduled(DomainEvent):
@@ -61,11 +57,6 @@ class Post(AggregateRoot):
     _events: list = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        super().__init__()
-
-    @reconstructor
-    def _init_on_load(self) -> None:
-        """Initialize _events when loaded from database."""
         super().__init__()
 
     @classmethod
@@ -118,13 +109,16 @@ class Post(AggregateRoot):
         )
         return post
 
+    def _ensure_mutable(self, verb: str) -> None:
+        """Guard shared by all mutating transitions (keeps status messages in one place)."""
+        if self.status == PostStatus.PUBLISHED:
+            raise ValueError(f"Cannot {verb} already published post")
+        if self.status == PostStatus.CANCELLED:
+            raise ValueError(f"Cannot {verb} cancelled post")
+
     def publish(self) -> None:
         """Publish the post immediately."""
-        if self.status == PostStatus.PUBLISHED:
-            raise ValueError("Post already published")
-
-        if self.status == PostStatus.CANCELLED:
-            raise ValueError("Cannot publish cancelled post")
+        self._ensure_mutable("publish")
 
         self.status = PostStatus.PUBLISHED
         self.published_at = datetime.utcnow()
@@ -135,15 +129,12 @@ class Post(AggregateRoot):
                 aggregate_id=self.id,
                 aggregate_type="Post",
                 post_id=self.id,
-                writer_id=self.writer_id,
-                published_at=self.published_at,
             )
         )
 
     def schedule(self, scheduled_for: datetime) -> None:
         """Schedule the post for future publication."""
-        if self.status == PostStatus.PUBLISHED:
-            raise ValueError("Cannot schedule already published post")
+        self._ensure_mutable("schedule")
 
         if scheduled_for <= datetime.utcnow():
             raise ValueError("Scheduled time must be in the future")
@@ -186,11 +177,7 @@ class Post(AggregateRoot):
         subscriber_content: Optional[str] = None,
     ) -> None:
         """Update post content (only for draft/scheduled)."""
-        if self.status == PostStatus.PUBLISHED:
-            raise ValueError("Cannot update published post")
-
-        if self.status == PostStatus.CANCELLED:
-            raise ValueError("Cannot update cancelled post")
+        self._ensure_mutable("update")
 
         if title is not None:
             self.title = title.strip()

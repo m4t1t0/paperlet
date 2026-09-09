@@ -7,8 +7,6 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy.orm import reconstructor
-
 from backend.src.shared.domain.events import AggregateRoot, DomainEvent
 from backend.src.shared.config import get_settings
 
@@ -83,6 +81,8 @@ class BillingCycleRenewed(DomainEvent):
 class Subscription(AggregateRoot):
     """Subscription aggregate - owns allocation slots and change credits."""
 
+    # Kept for backwards-compat / tests; authoritative values live in Settings
+    # (allocation_slots_per_subscription, change_credits_per_billing_cycle).
     MAX_SLOTS: int = 5
     CREDITS_PER_CYCLE: int = 2
 
@@ -92,30 +92,31 @@ class Subscription(AggregateRoot):
         reader_id: UUID,
         status: SubscriptionStatus = SubscriptionStatus.INCOMPLETE,
         billing_cycle_start: Optional[datetime] = None,
-        change_credits: int = CREDITS_PER_CYCLE,
+        change_credits: Optional[int] = None,
         slots: Optional[list[AllocationSlot]] = None,
         external_subscription_id: Optional[str] = None,
     ) -> None:
         super().__init__()
+        settings = get_settings()
         self.id = id
         self.reader_id = reader_id
         self.status = status
         self.billing_cycle_start = billing_cycle_start or datetime.utcnow()
-        self.change_credits = change_credits
+        self.change_credits = (
+            change_credits
+            if change_credits is not None
+            else settings.change_credits_per_billing_cycle
+        )
+        num_slots = settings.allocation_slots_per_subscription
         self.slots = slots or [
             AllocationSlot(writer_id=None, allocated_at=None)
-            for _ in range(self.MAX_SLOTS)
+            for _ in range(num_slots)
         ]
         # Set slot_index for each slot
         for i, slot in enumerate(self.slots):
             slot.slot_index = i
         self.external_subscription_id = external_subscription_id
         self.updated_at = datetime.utcnow()
-
-    @reconstructor
-    def _init_on_load(self) -> None:
-        """Initialize _events when loaded from database."""
-        super().__init__()
 
     @classmethod
     def create(
@@ -333,13 +334,14 @@ class Subscription(AggregateRoot):
         status_value = (
             self.status.value if hasattr(self.status, "value") else self.status
         )
+        settings = get_settings()
         return {
             "subscription_id": str(self.id),
             "status": status_value,
             "billing_cycle_start": self.billing_cycle_start.isoformat(),
             "change_credits_remaining": self.change_credits,
-            "change_credits_per_cycle": self.CREDITS_PER_CYCLE,
-            "total_slots": self.MAX_SLOTS,
+            "change_credits_per_cycle": settings.change_credits_per_billing_cycle,
+            "total_slots": len(self.slots),
             "allocated_slots": len(self.allocated_slots),
             "empty_slots": self.empty_slots,
             "allocations": [

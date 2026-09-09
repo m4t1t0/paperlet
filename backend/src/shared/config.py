@@ -4,7 +4,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import lru_cache
 import os
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from backend.src.shared.domain.value_objects import Money
 
 
 def _get_env(key: str, default: str = "") -> str:
@@ -75,6 +78,13 @@ class Settings:
     subscription_monthly_price_eur: float = field(
         default_factory=lambda: _get_env_float("SUBSCRIPTION_MONTHLY_PRICE_EUR", 9.95)
     )
+
+    @property
+    def subscription_price(self) -> "Money":
+        """Monthly price as a Money value object (validates config)."""
+        from backend.src.shared.domain.value_objects import Money
+
+        return Money.from_eur(self.subscription_monthly_price_eur)
     allocation_slots_per_subscription: int = field(
         default_factory=lambda: _get_env_int("ALLOCATION_SLOTS_PER_SUBSCRIPTION", 5)
     )
@@ -95,6 +105,11 @@ class Settings:
     # Payment Gateway
     payment_gateway: str = field(
         default_factory=lambda: _get_env("PAYMENT_GATEWAY", "mock")
+    )
+    subscription_price_id: str = field(
+        default_factory=lambda: _get_env(
+            "SUBSCRIPTION_PRICE_ID", "price_monthly_eur_995"
+        )
     )
     stripe_secret_key: Optional[str] = field(
         default_factory=lambda: _get_env("STRIPE_SECRET_KEY") or None

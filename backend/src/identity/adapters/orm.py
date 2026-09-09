@@ -46,6 +46,7 @@ sessions_table = Table(
 def start_mappers() -> None:
     """Start SQLAlchemy mappers."""
     from backend.src.shared.database import mapper_registry
+    from sqlalchemy import event as sa_event
     from sqlalchemy.orm import class_mapper
 
     # Check if already mapped
@@ -59,10 +60,45 @@ def start_mappers() -> None:
         User,
         users_table,
         properties={
-            "_roles_json": users_table.c.roles,
+            # Persisted JSON column; domain `roles` set is translated in repository.
+            # `_roles_persisted` is intentionally not a domain field (pure domain).
+            "_roles_persisted": users_table.c.roles,
         },
     )
     mapper_registry.map_imperatively(Session, sessions_table)
+
+    def _sync_roles(mapper, connection, target) -> None:
+        import json
+
+        roles = target.__dict__.get("roles") or set()
+        try:
+            # Instrumented setattr (not __dict__) so flush picks up the change.
+            target._roles_persisted = json.dumps([r.value for r in roles])
+        except Exception:
+            target._roles_persisted = "[]"
+
+    def _sync_roles_on_flush(session, flush_context, instances) -> None:
+        # `roles` is domain-only (unmapped set), so mutating it alone marks
+        # nothing dirty. Sync mapped `_roles_persisted` on every flush so
+        # add_role/remove_role persist without domain touching persistence.
+        import json
+
+        for obj in list(session.new) + list(session.dirty):
+            if isinstance(obj, User):
+                roles = obj.__dict__.get("roles") or set()
+                try:
+                    obj._roles_persisted = json.dumps([r.value for r in roles])
+                except Exception:
+                    obj._roles_persisted = "[]"
+
+    try:
+        sa_event.listen(User, "before_insert", _sync_roles)
+        sa_event.listen(User, "before_update", _sync_roles)
+        from sqlalchemy.orm import Session as _SASession
+
+        sa_event.listen(_SASession, "before_flush", _sync_roles_on_flush)
+    except Exception:
+        pass  # Listeners already registered (session-scoped start_mappers)
 
 
 def create_tables(engine) -> None:

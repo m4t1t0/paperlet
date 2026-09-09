@@ -59,3 +59,34 @@ class ReaderId(EntityId["User"]):
     """Reader identifier (subset of User)."""
 
     pass
+
+
+@dataclass(frozen=True)
+class Money:
+    """Money value object (integer minor units + currency, no float math)."""
+
+    cents: int
+    currency: str = "EUR"
+
+    def __post_init__(self) -> None:
+        if self.cents < 0:
+            raise ValueError("Money amount cannot be negative")
+        if not self.currency or len(self.currency) != 3:
+            raise ValueError("Currency must be a 3-letter code")
+
+    @classmethod
+    def from_eur(cls, amount: float) -> Money:
+        """Build from a euro float (rounded to cents)."""
+        import math
+
+        if not isinstance(amount, (int, float)) or math.isnan(amount):
+            raise ValueError("Invalid euro amount")
+        return cls(cents=int(round(amount * 100)), currency="EUR")
+
+    @property
+    def eur(self) -> float:
+        """Amount in euros (display only; arithmetic should use cents)."""
+        return self.cents / 100
+
+    def __str__(self) -> str:
+        return f"{self.eur:.2f} {self.currency}"

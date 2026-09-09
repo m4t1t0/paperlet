@@ -20,7 +20,7 @@ class MockPaymentGateway(PaymentGatewayAdapter):
     def create_subscription(
         self,
         customer_id: str,
-        price_id: float,
+        price_id: str,
         payment_method_id: str,
     ) -> SubscriptionResult:
         """Create a mock subscription."""
@@ -46,7 +46,7 @@ class MockPaymentGateway(PaymentGatewayAdapter):
             self._subscriptions[subscription_id]["status"] = "canceled"
             self._subscriptions[subscription_id]["cancel_at_period_end"] = True
             self._emit_webhook(
-                "subscription.canceled", {"subscription_id": subscription_id}
+                "customer.subscription.deleted", {"subscription_id": subscription_id}
             )
             return True
         return False
@@ -101,7 +101,7 @@ class MockPaymentGateway(PaymentGatewayAdapter):
         if subscription_id in self._subscriptions:
             self._subscriptions[subscription_id]["status"] = status
             self._emit_webhook(
-                "subscription.updated",
+                "customer.subscription.updated",
                 {"subscription_id": subscription_id, "status": status},
             )
 

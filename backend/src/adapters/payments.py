@@ -32,7 +32,7 @@ class PaymentGatewayAdapter(ABC):
     def create_subscription(
         self,
         customer_id: str,
-        price_id: float,  # Price in EUR
+        price_id: str,  # Stripe Price ID (opaque string, e.g. price_...)
         payment_method_id: str,
     ) -> SubscriptionResult:
         """Create a new subscription."""
