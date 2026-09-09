@@ -1,8 +1,5 @@
 """Unit tests for User domain model."""
 from __future__ import annotations
-from uuid import uuid4
-
-import pytest
 
 from backend.src.identity.domain.model import User, UserRole
 

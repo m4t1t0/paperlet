@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
-from backend.src.identity.domain.model import User, UserRole
+from backend.src.identity.domain.model import UserRole
 from backend.src.identity.service import JwtService, AuthService
 from backend.src.identity.adapters.sqlalchemy_repository import SqlAlchemyUserRepository, SqlAlchemySessionRepository
 

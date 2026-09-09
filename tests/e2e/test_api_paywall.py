@@ -1,6 +1,5 @@
 """E2E tests for API paywall logic."""
 from __future__ import annotations
-import pytest
 
 # No need for setup_db fixture - tables are created at session scope
 # Data is cleared between tests by the _clear_data fixture in conftest.py
@@ -126,7 +125,6 @@ class TestPaywallAPI:
 
         self._register_user(client, "writer3b@test.com", role="writer")
         writer_b_tokens = self._login(client, "writer3b@test.com")
-        writer_b_id = self._get_user_id_from_token(writer_b_tokens["access_token"])
 
         # Writer A creates post
         post_resp = self._create_post(client, writer_a_tokens["access_token"],
