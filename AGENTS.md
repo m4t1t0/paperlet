@@ -16,7 +16,9 @@ python -m invoke start      # Start server, no reloader (fast)
 python -m invoke develop    # Start server with hot reload
 python -m invoke stop       # Stop server
 python -m invoke restart    # Restart server (no reloader)
-python -m invoke openapi    # Regenerate openapi.yaml (use --check to verify)
+python -m invoke openapi    # Regenerate docs/openapi.yaml (use --check to verify)
+python -m invoke ui         # Start the Vue dev server
+python -m invoke ui-build   # Build the Vue app for production
 python -m invoke --list     # List all tasks
 ```
 
@@ -28,6 +30,7 @@ pip install -r requirements.txt
 
 ## Project Structure
 - `app.py` - Application factory with Flask app creation
+- `backend/` - Flask API (Cosmic Python); `frontend/` - Vue 3 SPA (Vite, Pinia, Router, Tailwind; types generated from `docs/openapi.yaml` via `npm run openapi`)
 - `tasks.py` - Invoke tasks for start/stop/restart
 - `requirements.txt` - Dependencies (flask, invoke, requests, sqlalchemy, marshmallow, pydantic, redis, httpx, alembic, etc.)
 - `PROMPT.md` - Product spec (authoritative)

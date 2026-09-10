@@ -13,6 +13,10 @@ dist/
 build/
 *.egg-info/
 
+# Frontend (Vue/Vite)
+node_modules/
+frontend/dist/
+
 # IDE
 .idea/
 .vscode/

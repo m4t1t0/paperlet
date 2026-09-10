@@ -155,6 +155,20 @@ def openapi(c, check=False):
 
 
 @task
+def ui(c):
+    """Start the Vue dev server (frontend/)."""
+    with c.cd("frontend"):
+        c.run("npm run dev", pty=True)
+
+
+@task
+def ui_build(c):
+    """Build the Vue app for production (frontend/dist/)."""
+    with c.cd("frontend"):
+        c.run("npm run build")
+
+
+@task
 def migrate(c, message=None):
     """Create a new migration."""
     from backend.src.shared.config import get_settings
