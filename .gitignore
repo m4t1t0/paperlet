@@ -31,6 +31,10 @@ htmlcov/
 
 # Misc
 .env
+.env.test
+.env.local
+.env.*.local
+!.env.example
 *.log
 *.pot
 *.pyc

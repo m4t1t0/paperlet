@@ -6,6 +6,16 @@ from functools import lru_cache
 import os
 from typing import Optional, TYPE_CHECKING
 
+try:
+    from dotenv import load_dotenv
+
+    # Load .env so DATABASE_URL etc. work without manual export.
+    # conftest.py / shell env vars still take precedence (override=False by default
+    # means existing env wins, file only fills gaps).
+    load_dotenv()
+except ImportError:
+    pass
+
 if TYPE_CHECKING:
     from backend.src.shared.domain.value_objects import Money
 

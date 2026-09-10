@@ -2,7 +2,6 @@
 from __future__ import annotations
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -13,7 +12,21 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
 # Set test environment BEFORE any other fixtures
 os.environ["APP_ENV"] = "test"
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+# Prefer explicit TEST_DATABASE_URL, then .env.test, then default paperlet_test.
+# (No SQLite fallback — tests run against Postgres per project preference.)
+def _resolve_test_db_url() -> str:
+    if os.environ.get("TEST_DATABASE_URL"):
+        return os.environ["TEST_DATABASE_URL"]
+    env_test = Path(__file__).parent.parent / ".env.test"
+    if env_test.exists():
+        for line in env_test.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("DATABASE_URL="):
+                return line.split("=", 1)[1].strip()
+    return "postgresql://rafa@localhost:5432/paperlet_test"
+
+
+os.environ["DATABASE_URL"] = _resolve_test_db_url()
 os.environ["REDIS_URL"] = "redis://localhost:6379/0"
 os.environ["SECRET_KEY"] = "test-secret-key"
 os.environ["JWT_ALGORITHM"] = "HS256"
@@ -28,21 +41,10 @@ os.environ["CELERY_BROKER_URL"] = "redis://localhost:6379/1"
 os.environ["CELERY_RESULT_BACKEND"] = "redis://localhost:6379/2"
 
 
-# Shared test database (file-based SQLite for persistence across connections)
-_test_db_fd = None
-_test_db_path = None
-
-
+# Shared test database: Postgres paperlet_test (see .env.test).
+# Tables are created once per session; rows are truncated between tests.
 def _get_test_db_url() -> str:
-    global _test_db_fd, _test_db_path
-    if _test_db_path is None:
-        _test_db_fd, _test_db_path = tempfile.mkstemp(suffix=".db")
-        os.close(_test_db_fd)
-    return f"sqlite:///{_test_db_path}"
-
-
-# Override the default DATABASE_URL for tests
-os.environ["DATABASE_URL"] = _get_test_db_url()
+    return os.environ["DATABASE_URL"]
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -70,18 +72,18 @@ def _start_mappers_and_create_tables() -> None:
 
 @pytest.fixture(autouse=True)
 def _clear_data(request):
-    """Clear all data between tests (only for integration/e2e tests)."""
-    # Only run for integration and e2e tests
-    if "integration" in request.keywords or "e2e" in request.keywords:
+    """Clear all data between tests (Postgres TRUNCATE CASCADE)."""
+    # Pure domain tests (tests/unit/domain) never touch the DB — skip fast.
+    if "integration" in request.keywords or "e2e" in request.keywords or "unit" in request.keywords:
         from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
         from sqlalchemy import text
         with SqlAlchemyUnitOfWork() as uow:
-            # Delete data from all tables in reverse order of dependencies
-            uow.session.execute(text("DELETE FROM allocation_log"))
-            uow.session.execute(text("DELETE FROM allocation_slots"))
-            uow.session.execute(text("DELETE FROM subscriptions"))
-            uow.session.execute(text("DELETE FROM posts"))
-            uow.session.execute(text("DELETE FROM users"))
+            # TRUNCATE handles FK order via CASCADE; keep alembic_version intact.
+            uow.session.execute(text(
+                "TRUNCATE TABLE allocation_log, writer_subscribers, "
+                "writer_followers, allocation_slots, subscriptions, "
+                "posts, sessions, users CASCADE"
+            ))
             uow.commit()
 
 

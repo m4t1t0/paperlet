@@ -12,7 +12,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Fix is_active column type from String to Boolean
+    # Fix is_active column type from String to Boolean.
+    # Must DROP DEFAULT first: the old 'true' varchar default cannot be
+    # auto-cast to boolean on fresh DBs.
+    op.execute("ALTER TABLE users ALTER COLUMN is_active DROP DEFAULT")
     op.alter_column(
         "users",
         "is_active",
@@ -20,8 +23,9 @@ def upgrade() -> None:
         type_=sa.Boolean(),
         postgresql_using="is_active::boolean",
         nullable=False,
-        server_default=sa.text("true"),
+        server_default=None,
     )
+    op.execute("ALTER TABLE users ALTER COLUMN is_active SET DEFAULT true")
 
     # Sessions table
     op.create_table(

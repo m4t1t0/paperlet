@@ -8,15 +8,14 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-# Add backend to path
-sys.path.append(str(Path(__file__).parent.parent))
+# Add repo root to path (env.py lives at backend/alembic/env.py)
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
-# Import all models to register them
-from backend.src.identity.adapters.orm import mapper_registry as identity_registry
-from backend.src.subscriptions.adapters.orm import (
-    mapper_registry as subscriptions_registry,
-)
-from backend.src.publishing.adapters.orm import mapper_registry as publishing_registry
+# Import all models to register tables on the shared metadata registry
+import backend.src.identity.adapters.orm  # noqa: F401
+import backend.src.subscriptions.adapters.orm  # noqa: F401
+import backend.src.publishing.adapters.orm  # noqa: F401
+from backend.src.shared.database import metadata as target_metadata
 from backend.src.shared.config import get_settings
 
 # This is the Alembic Config object
@@ -26,12 +25,8 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Combine all metadata
-target_metadata = [
-    identity_registry.metadata,
-    subscriptions_registry.metadata,
-    publishing_registry.metadata,
-]
+# Single shared metadata registry (see backend.src.shared.database)
+# (was a list of per-context metadatas, which Alembic does not support)
 
 
 def get_database_url() -> str:

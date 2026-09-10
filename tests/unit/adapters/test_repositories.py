@@ -1,10 +1,8 @@
-"""Unit adapter tests: repositories + UoW on SQLite (unique data per test)."""
+"""Unit adapter tests: repositories + UoW on Postgres paperlet_test (unique data per test)."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 from uuid import uuid4
-
-from sqlalchemy import text
 
 from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
 from backend.src.identity.domain.model import User, UserRole
@@ -186,15 +184,18 @@ class TestAllocationLogProjection:
             uow.commit()
 
         with SqlAlchemyUnitOfWork() as uow:
-            # Raw UUID params don't bind on SQLite (PG_UUID type) and stored
-            # UUIDs are dashless hex; filter in Python.
+            from backend.src.subscriptions.adapters.orm import allocation_log_table
+            from sqlalchemy import select
             rows = uow.session.execute(
-                text("SELECT subscription_id, action, credits_spent FROM allocation_log")
+                select(
+                    allocation_log_table.c.subscription_id,
+                    allocation_log_table.c.action,
+                    allocation_log_table.c.credits_spent,
+                ).where(allocation_log_table.c.subscription_id == sub_id)
             ).all()
-            mine = [r for r in rows if str(r[0]).replace("-", "") == sub_id.hex]
-            assert len(mine) == 1
-            assert mine[0][1] == "allocate"
-            assert mine[0][2] == 0
+            assert len(rows) == 1
+            assert rows[0][1] == "allocate"
+            assert rows[0][2] == 0
 
 
 class TestUnitOfWork:
