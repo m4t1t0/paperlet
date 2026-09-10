@@ -35,6 +35,7 @@ pip install -r requirements.txt
 - `requirements.txt` - Dependencies (flask, invoke, requests, sqlalchemy, marshmallow, pydantic, redis, httpx, alembic, etc.)
 - `PROMPT.md` - Product spec (authoritative)
 - `docs/openapi.yaml` - Generated API spec (do not edit; run `invoke openapi`)
+- `docs/STATUS.md` - Build status & handoff (what's built, what's left)
 - `CONTEXT.md` - Ubiquitous language glossary
 - `docs/adr/` - Architecture Decision Records
 - `backend/src/identity/` - Authentication & User Management (single User, Reader/Writer capabilities, JWT); `api_auth.py` shared Flask auth helpers; `writers_api.py` Writers Catalog (`GET /api/v1/writers`)
