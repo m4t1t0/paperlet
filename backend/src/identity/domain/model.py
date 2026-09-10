@@ -21,7 +21,6 @@ class UserRegistered(DomainEvent):
     """Event emitted when a user registers."""
 
     email: str
-    role: UserRole
 
 
 class UserCapabilitiesChanged(DomainEvent):
@@ -59,7 +58,12 @@ class Session:
 
 @dataclass
 class User(AggregateRoot):
-    """User aggregate - single identity with reader/writer capabilities."""
+    """User aggregate - single identity with reader/writer capabilities.
+
+    Capabilities are inferred from activity, never assigned at registration:
+    creating a post grants WRITER, subscribing/following a writer grants READER.
+    New users start with no roles.
+    """
 
     id: UUID = field(default_factory=uuid4)
     email: str = ""
@@ -70,27 +74,19 @@ class User(AggregateRoot):
     is_active: bool = True
     _events: list = field(default_factory=list, init=False, repr=False)
 
-    def __post_init__(self) -> None:
-        super().__init__()
-        if not self.roles:
-            self.roles = {UserRole.READER}
-
     @classmethod
-    def register(
-        cls, email: str, password_hash: str, role: UserRole = UserRole.READER
-    ) -> User:
-        """Register a new user."""
+    def register(cls, email: str, password_hash: str) -> User:
+        """Register a new user (no roles — inferred later from activity)."""
         user = cls(
             email=email.lower().strip(),
             password_hash=password_hash,
-            roles={role},
+            roles=set(),
         )
         user.add_event(
             UserRegistered(
                 aggregate_id=user.id,
                 aggregate_type="User",
                 email=user.email,
-                role=role,
             )
         )
         return user

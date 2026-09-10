@@ -87,6 +87,8 @@ class SubscriptionService:
         """Handle subscription updated webhook."""
         external_id = payload.get("subscription_id")
         status = payload.get("status")
+        if not external_id:
+            return
         subscription = self._subscription_repo.get_by_external_id(external_id)
         if subscription:
             subscription.update_status(SubscriptionStatus(status))
@@ -94,6 +96,8 @@ class SubscriptionService:
     def _handle_subscription_canceled(self, payload: dict) -> None:
         """Handle subscription canceled webhook."""
         external_id = payload.get("subscription_id")
+        if not external_id:
+            return
         subscription = self._subscription_repo.get_by_external_id(external_id)
         if subscription:
             subscription.update_status(SubscriptionStatus.CANCELED)
@@ -101,6 +105,8 @@ class SubscriptionService:
     def _handle_payment_failed(self, payload: dict) -> None:
         """Handle payment failed webhook."""
         external_id = payload.get("subscription_id")
+        if not external_id:
+            return
         subscription = self._subscription_repo.get_by_external_id(external_id)
         if subscription:
             subscription.update_status(SubscriptionStatus.PAST_DUE)
@@ -108,6 +114,8 @@ class SubscriptionService:
     def _handle_payment_succeeded(self, payload: dict) -> None:
         """Handle payment succeeded webhook - renew billing cycle."""
         external_id = payload.get("subscription_id")
+        if not external_id:
+            return
         subscription = self._subscription_repo.get_by_external_id(external_id)
         if subscription and subscription.status in (
             SubscriptionStatus.ACTIVE,

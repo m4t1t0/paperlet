@@ -3,7 +3,13 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Quoted forward refs for the `EntityId["..."]` bases below (mypy-only).
+    from backend.src.identity.domain.model import User  # noqa: F401
+    from backend.src.publishing.domain.model import Post  # noqa: F401
+    from backend.src.subscriptions.domain.model import Subscription  # noqa: F401
 
 T = TypeVar("T")
 

@@ -1,6 +1,6 @@
 """Identity SQLAlchemy repository implementations."""
 from __future__ import annotations
-from typing import Optional
+from typing import Any, Optional, cast
 from uuid import UUID
 import json
 
@@ -16,12 +16,12 @@ def _roles_to_json(roles: set[UserRole]) -> str:
 
 def _json_to_roles(json_str: str | None) -> set[UserRole]:
     if not json_str:
-        return {UserRole.READER}
+        return set()
     try:
         role_values = json.loads(json_str)
         return {UserRole(r) for r in role_values}
     except (json.JSONDecodeError, ValueError):
-        return {UserRole.READER}
+        return set()
 
 
 def _hydrate_roles(user: User) -> User:
@@ -47,7 +47,7 @@ class SqlAlchemyUserRepository(UserRepository):
         return user
 
     def get_by_email(self, email: str) -> Optional[User]:
-        user = self._session.query(User).filter(User.email == email.lower().strip()).first()
+        user = self._session.query(User).filter_by(email=email.lower().strip()).first()
         if user:
             _hydrate_roles(user)
         return user
@@ -72,15 +72,14 @@ class SqlAlchemySessionRepository(SessionRepository):
         return self._session.get(Session, session_id)
 
     def get_by_refresh_token_hash(self, token_hash: str) -> Optional[Session]:
-        return self._session.query(Session).filter(Session.refresh_token_hash == token_hash).first()
+        return self._session.query(Session).filter_by(refresh_token_hash=token_hash).first()
 
     def get_active_by_user(self, user_id: UUID) -> Optional[Session]:
         from datetime import datetime
         now = datetime.utcnow()
         return (
             self._session.query(Session)
-            .filter(Session.user_id == user_id)
-            .filter(Session.revoked_at.is_(None))
-            .filter(Session.expires_at > now)
+            .filter_by(user_id=user_id, revoked_at=None)
+            .filter(cast(Any, Session.expires_at) > now)
             .first()
         )

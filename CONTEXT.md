@@ -41,7 +41,7 @@ _Avoid_: Newsletter, article, publication
 ## Architecture Decisions (Glossary Extensions)
 
 **User (Aggregate)**:
-Identity aggregate containing credentials, JWT session management, and Reader/Writer capabilities derived from state (has subscription / has newsletter). Not separate Reader/Writer aggregates.
+Identity aggregate containing credentials, JWT session management, and Reader/Writer capabilities derived from state (has subscription / has newsletter). Not separate Reader/Writer aggregates. Roles are inferred from activity, never chosen at signup: `POST /register` takes email + password only (a client-sent `role` is ignored); creating a first post grants WRITER, subscribing or allocating/following a writer grants READER.
 
 **Subscription (Aggregate)**:
 Owns allocation slots (max 5) and change credits (2 per billing cycle). Anchored to subscription start date for credit reset. Enforces unique writer per subscription.

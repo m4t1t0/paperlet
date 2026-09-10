@@ -6,16 +6,14 @@ from typing import Optional
 
 from backend.src.shared.domain.value_objects import UserId
 from backend.src.shared.service_layer.messagebus import Command
-from backend.src.identity.domain.model import UserRole
 
 
 @dataclass(frozen=True)
 class RegisterCommand(Command):
-    """Command to register a new user."""
+    """Command to register a new user (no role — inferred from activity)."""
 
     email: str
     password: str
-    role: UserRole = UserRole.READER
 
 
 @dataclass(frozen=True)

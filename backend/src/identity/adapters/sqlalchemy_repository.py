@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import Any, Optional, cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session as SQLAlchemySession
@@ -17,13 +17,15 @@ def _roles_to_json(roles: set[UserRole]) -> str:
 
 
 def _json_to_roles(json_str: str | None) -> set[UserRole]:
+    # No default role: capabilities are inferred from activity (post → writer,
+    # subscribe/follow → reader). Empty/corrupt persistence means no roles.
     if not json_str:
-        return {UserRole.READER}
+        return set()
     try:
         role_values = json.loads(json_str)
         return {UserRole(r) for r in role_values}
     except (json.JSONDecodeError, ValueError):
-        return {UserRole.READER}
+        return set()
 
 
 def _hydrate_roles(user: User) -> User:
@@ -51,7 +53,7 @@ class SqlAlchemyUserRepository(UserRepository):
     def get_by_email(self, email: str) -> Optional[User]:
         user = (
             self._session.query(User)
-            .filter(User.email == email.lower().strip())
+            .filter_by(email=email.lower().strip())
             .first()
         )
         if user:
@@ -80,7 +82,7 @@ class SqlAlchemySessionRepository(SessionRepository):
     def get_by_refresh_token_hash(self, token_hash: str) -> Optional[Session]:
         return (
             self._session.query(Session)
-            .filter(Session.refresh_token_hash == token_hash)
+            .filter_by(refresh_token_hash=token_hash)
             .first()
         )
 
@@ -90,8 +92,7 @@ class SqlAlchemySessionRepository(SessionRepository):
         now = datetime.utcnow()
         return (
             self._session.query(Session)
-            .filter(Session.user_id == user_id)
-            .filter(Session.revoked_at.is_(None))
-            .filter(Session.expires_at > now)
+            .filter_by(user_id=user_id, revoked_at=None)
+            .filter(cast(Any, Session.expires_at) > now)
             .first()
         )

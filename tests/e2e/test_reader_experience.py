@@ -10,10 +10,10 @@ def _auth(client, token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _register(client, email: str, role: str = "reader") -> None:
+def _register(client, email: str) -> None:
     resp = client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "password123", "role": role},
+        json={"email": email, "password": "password123"},
     )
     assert resp.status_code == 201, resp.get_json()
 
@@ -42,7 +42,7 @@ def _publish(client, writer_token: str, title: str, preview: str, full: str) -> 
 
 class TestReaderExperience:
     def test_public_preview_and_catalog(self, client):
-        _register(client, "pub-w@test.com", role="writer")
+        _register(client, "pub-w@test.com")
         wt = _login(client, "pub-w@test.com")["access_token"]
         post_id = _publish(client, wt, "Hello", "PREVIEW", "FULL")
 
@@ -83,7 +83,7 @@ class TestReaderExperience:
         assert resp.get_json()["code"] == "NOT_FOUND"
 
     def test_feed_and_archival(self, client):
-        _register(client, "feed-w@test.com", role="writer")
+        _register(client, "feed-w@test.com")
         wt = _login(client, "feed-w@test.com")["access_token"]
         old_id = _publish(client, wt, "Old Post", "OLD-PRE", "OLD-FULL")
         new_id = _publish(client, wt, "New Post", "NEW-PRE", "NEW-FULL")
@@ -114,13 +114,73 @@ class TestReaderExperience:
         assert resp.get_json()["subscriber_content"] == "OLD-FULL"
 
 
+class TestRoleInference:
+    """Roles are inferred from activity, never chosen at signup."""
+
+    def test_register_grants_no_roles_and_ignores_role_field(self, client):
+        # A client-sent role is ignored for backwards compatibility.
+        resp = client.post(
+            "/api/v1/auth/register",
+            json={"email": "norole@test.com", "password": "password123", "role": "writer"},
+        )
+        assert resp.status_code == 201
+        assert resp.get_json()["roles"] == []
+
+        tokens = _login(client, "norole@test.com")
+        resp = client.get("/api/v1/auth/me", headers=_auth(client, tokens["access_token"]))
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["roles"] == []
+        assert body["is_writer"] is False
+        assert body["is_reader"] is False
+
+    def test_first_post_grants_writer(self, client):
+        _register(client, "new-writer@test.com")
+        wt = _login(client, "new-writer@test.com")["access_token"]
+
+        # Any authenticated user may create a first post (no prior WRITER needed).
+        resp = client.post(
+            "/api/v1/posts",
+            json={"title": "First", "preview_content": "PRE", "subscriber_content": "FULL"},
+            headers=_auth(client, wt),
+        )
+        assert resp.status_code == 201, resp.get_json()
+
+        resp = client.get("/api/v1/auth/me", headers=_auth(client, wt))
+        assert resp.get_json()["is_writer"] is True
+
+        # Inferred writer shows up in the public catalog.
+        resp = client.get("/api/v1/writers?q=new-writer")
+        assert any("new-writer" in w["email"] for w in resp.get_json()["writers"])
+
+    def test_subscribe_and_follow_grant_reader(self, client):
+        _register(client, "inf-w@test.com")
+        wt = _login(client, "inf-w@test.com")["access_token"]
+        _publish(client, wt, "P", "PRE", "FULL")
+
+        _register(client, "inf-r@test.com")
+        rt = _login(client, "inf-r@test.com")["access_token"]
+
+        client.post("/api/v1/subscriptions/subscribe", json={}, headers=_auth(client, rt))
+        resp = client.get("/api/v1/auth/me", headers=_auth(client, rt))
+        assert resp.get_json()["is_reader"] is True
+
+        client.post(
+            "/api/v1/subscriptions/allocations/assign",
+            json={"writer_id": _user_id(wt)},
+            headers=_auth(client, rt),
+        )
+        resp = client.get("/api/v1/auth/me", headers=_auth(client, rt))
+        assert resp.get_json()["is_reader"] is True
+
+
 class TestWebhookAndAudit:
     def test_webhook_route_and_allocation_log(self, client):
         from sqlalchemy import text
 
         from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
 
-        _register(client, "wh-w@test.com", role="writer")
+        _register(client, "wh-w@test.com")
         wt = _login(client, "wh-w@test.com")["access_token"]
         writer_id = _user_id(wt)
 
@@ -136,7 +196,7 @@ class TestWebhookAndAudit:
         assert resp.status_code == 200
         assert resp.get_json() == {"received": True}
 
-        _register(client, "wh-w2@test.com", role="writer")
+        _register(client, "wh-w2@test.com")
         wt2 = _login(client, "wh-w2@test.com")["access_token"]
         post_id = _publish(client, wt, "WH Post", "WH-PRE", "WH-FULL")
         client.post(

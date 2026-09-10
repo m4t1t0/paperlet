@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
-from backend.src.identity.domain.model import UserRole
 from backend.src.identity.service import JwtService, AuthService
 from backend.src.identity.adapters.sqlalchemy_repository import SqlAlchemyUserRepository, SqlAlchemySessionRepository
 
@@ -22,12 +21,12 @@ class TestAuthIntegration:
             jwt_service = JwtService()
             auth = AuthService(user_repo, session_repo, jwt_service)
 
-            # Register
-            user = auth.register("test@example.com", "password123", UserRole.READER)
+            # Register (no roles at signup — inferred from activity)
+            user = auth.register("test@example.com", "password123")
             uow.commit()
 
             assert user.email == "test@example.com"
-            assert user.has_role(UserRole.READER)
+            assert user.roles == set()
 
             # Login
             tokens = auth.login("test@example.com", "password123")
@@ -81,7 +80,7 @@ class TestAuthIntegration:
             jwt_service = JwtService()
             auth = AuthService(user_repo, session_repo, jwt_service)
 
-            user = auth.register("test@example.com", "password123", UserRole.WRITER)
+            user = auth.register("test@example.com", "password123")
             uow.commit()
 
             tokens = auth.login("test@example.com", "password123")
@@ -89,7 +88,7 @@ class TestAuthIntegration:
             current_user = auth.get_current_user(tokens.access_token)
 
             assert current_user.id == user.id
-            assert current_user.is_writer()
+            assert not current_user.is_writer()
 
     def test_register_duplicate_email_fails(self) -> None:
         with SqlAlchemyUnitOfWork() as uow:

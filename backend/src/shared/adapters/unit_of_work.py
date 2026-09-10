@@ -24,7 +24,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork, AbstractContextManager):
     def _create_session_factory(self) -> sessionmaker:
         settings = get_settings()
         is_sqlite = "sqlite" in settings.database_url
-        engine_kwargs = {"pool_pre_ping": True}
+        engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
         if not is_sqlite:
             engine_kwargs["pool_size"] = settings.database_pool_size
             engine_kwargs["max_overflow"] = settings.database_max_overflow

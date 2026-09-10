@@ -9,7 +9,7 @@ import jwt
 from passlib.hash import bcrypt
 
 from backend.src.shared.config import get_settings
-from backend.src.identity.domain.model import User, UserRole, Session
+from backend.src.identity.domain.model import User, Session
 from backend.src.identity.domain.repository import UserRepository, SessionRepository
 
 
@@ -111,16 +111,14 @@ class AuthService:
         self._jwt = jwt_service
         self._settings = get_settings()
 
-    def register(
-        self, email: str, password: str, role: UserRole = UserRole.READER
-    ) -> User:
-        """Register a new user."""
+    def register(self, email: str, password: str) -> User:
+        """Register a new user (no roles — inferred later from activity)."""
         existing = self._user_repo.get_by_email(email)
         if existing:
             raise ValueError("Email already registered")
 
         password_hash = User.hash_password(password)
-        user = User.register(email, password_hash, role)
+        user = User.register(email, password_hash)
         self._user_repo.add(user)
         return user
 

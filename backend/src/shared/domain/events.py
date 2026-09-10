@@ -7,9 +7,6 @@ from typing import Any, Generic, TypeVar
 from uuid import UUID, uuid4
 
 
-T = TypeVar("T")
-
-
 class EventPublisher(ABC):
     """Interface for publishing domain events."""
 
@@ -42,6 +39,9 @@ class DomainEvent:
         # Store extra fields
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+
+T = TypeVar("T", bound=DomainEvent)
 
 
 class EventHandler(ABC, Generic[T]):

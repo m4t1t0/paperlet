@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
+from backend.src.identity.domain.model import UserRole
+from backend.src.identity.domain.repository import UserRepository
 from backend.src.shared.config import get_settings
 from backend.src.shared.service_layer.messagebus import CommandHandler
 from backend.src.subscriptions.adapters.repository import SubscriptionRepository
@@ -13,7 +17,7 @@ from backend.src.subscriptions.commands import (
     SubscribeCommand,
     SwapAllocationCommand,
 )
-from backend.src.subscriptions.domain.model import Subscription
+from backend.src.subscriptions.domain.model import AllocationChanged, Subscription
 from backend.src.subscriptions.service import SubscriptionService
 
 
@@ -30,8 +34,15 @@ def _persist_allocation_log(subscription_repo, subscription: Subscription) -> No
         return
     projector = AllocationLogProjection(session)
     for event in subscription.events:
-        if event.__class__.__name__ == "AllocationChanged":
+        if isinstance(event, AllocationChanged):
             projector.handle(event)
+
+
+def _ensure_reader(user_repo: UserRepository, user_id: UUID) -> None:
+    """Grant READER capability (roles are activity-inferred, never chosen)."""
+    user = user_repo.get(user_id)
+    if user is not None:
+        user.add_role(UserRole.READER)
 
 
 class SubscribeHandler(CommandHandler[SubscribeCommand, Subscription]):
@@ -41,15 +52,19 @@ class SubscribeHandler(CommandHandler[SubscribeCommand, Subscription]):
         self,
         subscription_repo: SubscriptionRepository,
         subscription_service: SubscriptionService,
+        user_repo: UserRepository,
     ) -> None:
         self._subscription_repo = subscription_repo
         self._service = subscription_service
+        self._user_repo = user_repo
 
     def handle(self, command: SubscribeCommand) -> Subscription:
-        return self._service.create_subscription(
+        subscription = self._service.create_subscription(
             command.reader_id.value,
             command.payment_method_id,
         )
+        _ensure_reader(self._user_repo, command.reader_id.value)
+        return subscription
 
 
 class GetAllocationsHandler(CommandHandler[GetAllocationsCommand, dict]):
@@ -79,8 +94,13 @@ class GetAllocationsHandler(CommandHandler[GetAllocationsCommand, dict]):
 class AssignAllocationHandler(CommandHandler[AssignAllocationCommand, dict]):
     """Handler for assigning a writer to an empty slot."""
 
-    def __init__(self, subscription_repo: SubscriptionRepository) -> None:
+    def __init__(
+        self,
+        subscription_repo: SubscriptionRepository,
+        user_repo: UserRepository,
+    ) -> None:
         self._subscription_repo = subscription_repo
+        self._user_repo = user_repo
 
     def handle(self, command: AssignAllocationCommand) -> dict:
         subscription = self._subscription_repo.get_by_reader(command.reader_id.value)
@@ -89,6 +109,7 @@ class AssignAllocationHandler(CommandHandler[AssignAllocationCommand, dict]):
 
         credits_spent = subscription.allocate_writer(command.writer_id.value)
         _persist_allocation_log(self._subscription_repo, subscription)
+        _ensure_reader(self._user_repo, command.reader_id.value)
         return {
             "success": True,
             "credits_spent": credits_spent,
@@ -99,8 +120,13 @@ class AssignAllocationHandler(CommandHandler[AssignAllocationCommand, dict]):
 class SwapAllocationHandler(CommandHandler[SwapAllocationCommand, dict]):
     """Handler for swapping writers."""
 
-    def __init__(self, subscription_repo: SubscriptionRepository) -> None:
+    def __init__(
+        self,
+        subscription_repo: SubscriptionRepository,
+        user_repo: UserRepository,
+    ) -> None:
         self._subscription_repo = subscription_repo
+        self._user_repo = user_repo
 
     def handle(self, command: SwapAllocationCommand) -> dict:
         subscription = self._subscription_repo.get_by_reader(command.reader_id.value)
@@ -111,6 +137,7 @@ class SwapAllocationHandler(CommandHandler[SwapAllocationCommand, dict]):
             command.current_writer_id.value, command.new_writer_id.value
         )
         _persist_allocation_log(self._subscription_repo, subscription)
+        _ensure_reader(self._user_repo, command.reader_id.value)
         return {
             "success": True,
             "credits_spent": credits_spent,

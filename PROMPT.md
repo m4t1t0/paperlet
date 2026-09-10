@@ -83,7 +83,7 @@ backend/
 ## API Endpoints Specification
 
 ### Identity (`/api/v1/auth`)
-* `POST /register` – Reader/Writer registration
+* `POST /register` – User registration (email + password only, no role — Reader/Writer capabilities are inferred from activity: writing a post grants writer, subscribing/following a writer grants reader)
 * `POST /login` – Returns JWT access/refresh tokens
 * `GET /me` – Profile state
 

@@ -159,7 +159,9 @@ class Subscription(AggregateRoot):
     @property
     def allocated_writer_ids(self) -> set[UUID]:
         """Get set of writer IDs currently allocated."""
-        return {slot.writer_id for slot in self.allocated_slots}
+        return {
+            slot.writer_id for slot in self.allocated_slots if slot.writer_id is not None
+        }
 
     def is_writer_allocated(self, writer_id: UUID) -> bool:
         """Check if a writer is already allocated."""

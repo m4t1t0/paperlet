@@ -87,9 +87,9 @@ def start_mappers() -> None:
             if isinstance(obj, User):
                 roles = obj.__dict__.get("roles") or set()
                 try:
-                    obj._roles_persisted = json.dumps([r.value for r in roles])
+                    obj._roles_persisted = json.dumps([r.value for r in roles])  # type: ignore[attr-defined]
                 except Exception:
-                    obj._roles_persisted = "[]"
+                    obj._roles_persisted = "[]"  # type: ignore[attr-defined]
 
     try:
         sa_event.listen(User, "before_insert", _sync_roles)

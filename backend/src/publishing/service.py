@@ -15,6 +15,8 @@ from backend.src.publishing.commands import (
     UpdatePostCommand,
 )
 from backend.src.publishing.domain.model import Post, PostStatus
+from backend.src.identity.domain.repository import UserRepository
+from backend.src.identity.domain.model import UserRole
 from backend.src.shared.domain.events import EventPublisher
 from backend.src.subscriptions.adapters.repository import SubscriptionRepository
 from backend.src.shared.service_layer.messagebus import CommandHandler
@@ -28,10 +30,18 @@ class PublishingService:
         post_repo: PostRepository,
         subscription_repo: SubscriptionRepository,
         event_publisher: EventPublisher,
+        user_repo: UserRepository,
     ) -> None:
         self._post_repo = post_repo
         self._subscription_repo = subscription_repo
         self._event_publisher = event_publisher
+        self._user_repo = user_repo
+
+    def _ensure_writer(self, writer_id) -> None:
+        """Grant WRITER capability on first post (roles are activity-inferred)."""
+        user = self._user_repo.get(writer_id)
+        if user is not None:
+            user.add_role(UserRole.WRITER)
 
     def create_draft(self, command: CreatePostCommand) -> Post:
         """Create a draft post."""
@@ -42,6 +52,7 @@ class PublishingService:
             subscriber_content=command.subscriber_content,
         )
         self._post_repo.add(post)
+        self._ensure_writer(command.writer_id.value)
         return post
 
     def create_scheduled(self, command: CreateScheduledPostCommand) -> Post:
@@ -54,6 +65,7 @@ class PublishingService:
             scheduled_for=command.scheduled_for,
         )
         self._post_repo.add(post)
+        self._ensure_writer(command.writer_id.value)
         return post
 
     def publish_post(self, command: PublishPostCommand) -> Post:

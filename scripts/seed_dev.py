@@ -1,19 +1,30 @@
 """Seed development data."""
 from __future__ import annotations
-from uuid import uuid4
 
 from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
-from backend.src.identity.adapters.orm import create_tables as create_identity_tables
-from backend.src.subscriptions.adapters.orm import create_tables as create_sub_tables
-from backend.src.publishing.adapters.orm import create_tables as create_pub_tables
+from backend.src.identity.adapters.orm import (
+    create_tables as create_identity_tables,
+    start_mappers as start_identity_mappers,
+)
+from backend.src.subscriptions.adapters.orm import (
+    create_tables as create_sub_tables,
+    start_mappers as start_sub_mappers,
+)
+from backend.src.publishing.adapters.orm import (
+    create_tables as create_pub_tables,
+    start_mappers as start_pub_mappers,
+)
 from backend.src.identity.domain.model import User, UserRole
-from backend.src.subscriptions.domain.model import Subscription, SubscriptionStatus, AllocationSlot
-from backend.src.publishing.domain.model import Post, PostStatus
+from backend.src.subscriptions.domain.model import Subscription, SubscriptionStatus
+from backend.src.publishing.domain.model import Post
 
 
 def seed() -> None:
     """Seed development database with test data."""
     print("Creating tables...")
+    start_identity_mappers()
+    start_sub_mappers()
+    start_pub_mappers()
     with SqlAlchemyUnitOfWork() as uow:
         create_identity_tables(uow.session.bind)
         create_sub_tables(uow.session.bind)
@@ -22,28 +33,29 @@ def seed() -> None:
 
     print("Seeding users...")
     with SqlAlchemyUnitOfWork() as uow:
-        # Create test users
+        # Register users (no roles at signup — inferred from activity below,
+        # mirroring production: posting grants WRITER, subscribing grants READER).
         reader1 = User.register(
             email="reader1@example.com",
             password_hash=User.hash_password("password123"),
-            role=UserRole.READER,
         )
+        reader1.add_role(UserRole.READER)
         reader2 = User.register(
             email="reader2@example.com",
             password_hash=User.hash_password("password123"),
-            role=UserRole.READER,
         )
+        reader2.add_role(UserRole.READER)
         writer1 = User.register(
             email="writer1@example.com",
             password_hash=User.hash_password("password123"),
-            role=UserRole.WRITER,
         )
+        writer1.add_role(UserRole.WRITER)
         writer1.add_role(UserRole.READER)  # Writers can also be readers
         writer2 = User.register(
             email="writer2@example.com",
             password_hash=User.hash_password("password123"),
-            role=UserRole.WRITER,
         )
+        writer2.add_role(UserRole.WRITER)
         writer2.add_role(UserRole.READER)
 
         uow.session.add_all([reader1, reader2, writer1, writer2])

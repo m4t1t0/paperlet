@@ -4,7 +4,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from backend.src.shared.adapters.unit_of_work import SqlAlchemyUnitOfWork
-from backend.src.identity.domain.model import User, UserRole
+from backend.src.identity.domain.model import User
 from backend.src.identity.adapters.sqlalchemy_repository import (
     SqlAlchemyUserRepository,
 )
@@ -19,7 +19,7 @@ from backend.src.adapters.mock_payments import MockPaymentGateway
 def _make_reader(email: str) -> object:
     with SqlAlchemyUnitOfWork() as uow:
         repo = SqlAlchemyUserRepository(uow.session)
-        user = User.register(email, "hash-not-bcrypt", UserRole.READER)
+        user = User.register(email, "hash-not-bcrypt")
         repo.add(user)
         uow.commit()
         return user.id

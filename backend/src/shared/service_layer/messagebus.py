@@ -4,16 +4,17 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Generic, TypeVar
 
-from backend.src.shared.domain.events import DomainEvent, EventBus
-
-T = TypeVar("T")
-R = TypeVar("R")
+from backend.src.shared.domain.events import DomainEvent, EventBus, EventHandler
 
 
 class Command(ABC):
     """Base class for commands."""
 
     pass
+
+
+T = TypeVar("T", bound=Command)
+R = TypeVar("R")
 
 
 class CommandHandler(ABC, Generic[T, R]):
@@ -39,7 +40,7 @@ class MessageBus:
         self._command_handlers[command_type] = handler
 
     def register_event_handler(
-        self, event_type: type[DomainEvent], handler: Callable[[DomainEvent], None]
+        self, event_type: type[DomainEvent], handler: EventHandler[DomainEvent]
     ) -> None:
         """Register an event handler."""
         self._event_bus.register(event_type, handler)

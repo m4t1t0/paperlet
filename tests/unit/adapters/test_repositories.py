@@ -24,8 +24,11 @@ def _unique_email(prefix: str) -> str:
     return f"{prefix}-{uuid4().hex[:8]}@test.com"
 
 
-def _make_user(email: str, role: UserRole = UserRole.READER) -> User:
-    return User.register(email, "hash-not-bcrypt", role)
+def _make_user(email: str, role: UserRole | None = None) -> User:
+    user = User.register(email, "hash-not-bcrypt")
+    if role is not None:
+        user.add_role(role)
+    return user
 
 
 class TestUserRepository:

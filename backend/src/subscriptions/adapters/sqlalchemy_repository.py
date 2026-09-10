@@ -25,14 +25,13 @@ class SqlAlchemySubscriptionRepository(SubscriptionRepository):
     def get_by_reader(self, reader_id: UUID) -> Optional[Subscription]:
         return (
             self._session.query(Subscription)
-            .filter(Subscription.reader_id == reader_id)
-            .filter(Subscription.status == SubscriptionStatus.ACTIVE)
+            .filter_by(reader_id=reader_id, status=SubscriptionStatus.ACTIVE)
             .first()
         )
 
     def get_by_external_id(self, external_id: str) -> Optional[Subscription]:
         return (
             self._session.query(Subscription)
-            .filter(Subscription.external_subscription_id == external_id)
+            .filter_by(external_subscription_id=external_id)
             .first()
         )

@@ -166,6 +166,7 @@ class WriterSubscribersProjection(EventHandler[AllocationChanged]):
 
         if action == AllocationAction.ALLOCATE and writer_id:
             # Add subscriber with allocation
+            assert reader_id is not None and subscription_id is not None
             _upsert_subscriber(
                 self._session, writer_id, reader_id, subscription_id, event.occurred_at
             )
@@ -179,6 +180,7 @@ class WriterSubscribersProjection(EventHandler[AllocationChanged]):
 
         elif action == AllocationAction.SWAP and writer_id and previous_writer_id:
             # Remove from old writer's subscribers
+            assert reader_id is not None and subscription_id is not None
             self._session.execute(
                 delete(writer_subscribers_table).where(
                     writer_subscribers_table.c.writer_id == previous_writer_id,
@@ -203,6 +205,7 @@ class WriterSubscribersProjection(EventHandler[AllocationChanged]):
 
         elif action == AllocationAction.RELEASE and previous_writer_id:
             # Remove from subscribers
+            assert reader_id is not None
             self._session.execute(
                 delete(writer_subscribers_table).where(
                     writer_subscribers_table.c.writer_id == previous_writer_id,
@@ -223,12 +226,14 @@ class SubscriptionStatusProjection(EventHandler[DomainEvent]):
 
     def handle(self, event: DomainEvent) -> None:
         if event.__class__.__name__ == "SubscriptionStatusChanged":
-            new_status = event.new_status
-            if (
-                new_status.value
-                if hasattr(new_status, "value")
-                else new_status != "active"
-            ):
+            new_status = getattr(event, "new_status", None)
+            # NOTE: enum members are always truthy; plain values compare
+            # against "active". Structured to keep mypy narrowing sound.
+            if hasattr(new_status, "value"):
+                became_inactive = True
+            else:
+                became_inactive = new_status != "active"
+            if became_inactive:
                 # Subscription became inactive - remove all allocations
                 sub_id = AllocationLogProjection._to_uuid(event.aggregate_id)
                 self._session.execute(

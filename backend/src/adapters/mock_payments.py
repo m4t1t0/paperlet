@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import uuid
+from collections.abc import Callable
 
 from backend.src.adapters.payments import (
     PaymentGatewayAdapter,
@@ -15,7 +16,7 @@ class MockPaymentGateway(PaymentGatewayAdapter):
 
     def __init__(self) -> None:
         self._subscriptions: dict[str, dict] = {}
-        self._webhook_handlers: list[callable] = []
+        self._webhook_handlers: list[Callable[[str, dict], None]] = []
 
     def create_subscription(
         self,
@@ -75,7 +76,7 @@ class MockPaymentGateway(PaymentGatewayAdapter):
             except Exception:
                 pass  # Ignore handler errors in mock
 
-    def register_webhook_handler(self, handler: callable) -> None:
+    def register_webhook_handler(self, handler: Callable[[str, dict], None]) -> None:
         """Register a webhook handler."""
         self._webhook_handlers.append(handler)
 

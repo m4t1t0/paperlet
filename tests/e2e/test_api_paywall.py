@@ -8,12 +8,11 @@ from __future__ import annotations
 class TestPaywallAPI:
     """E2E tests for paywall functionality."""
 
-    def _register_user(self, client, email: str, password: str = "password123", role: str = "reader"):
-        """Helper to register a user."""
+    def _register_user(self, client, email: str, password: str = "password123"):
+        """Helper to register a user (no role — inferred from activity)."""
         return client.post("/api/v1/auth/register", json={
             "email": email,
             "password": password,
-            "role": role,
         })
 
     def _login(self, client, email: str, password: str = "password123"):
@@ -72,7 +71,7 @@ class TestPaywallAPI:
     def test_public_can_read_preview_only(self, client):
         """Test that non-subscribers only see preview content on single post."""
         # Register writer and create post
-        self._register_user(client, "writer@test.com", role="writer")
+        self._register_user(client, "writer@test.com")
         writer_tokens = self._login(client, "writer@test.com")
 
         post_resp = self._create_post(client, writer_tokens["access_token"],
@@ -95,7 +94,7 @@ class TestPaywallAPI:
     def test_subscriber_with_allocation_sees_full_content(self, client):
         """Test that subscribers with allocation see full content."""
         # Register writer and create post
-        self._register_user(client, "writer2@test.com", role="writer")
+        self._register_user(client, "writer2@test.com")
         writer_tokens = self._login(client, "writer2@test.com")
 
         post_resp = self._create_post(client, writer_tokens["access_token"],
@@ -120,10 +119,10 @@ class TestPaywallAPI:
     def test_subscriber_without_allocation_sees_preview_only(self, client):
         """Test that subscribers without allocation to writer see preview only."""
         # Register two writers
-        self._register_user(client, "writer3a@test.com", role="writer")
+        self._register_user(client, "writer3a@test.com")
         writer_a_tokens = self._login(client, "writer3a@test.com")
 
-        self._register_user(client, "writer3b@test.com", role="writer")
+        self._register_user(client, "writer3b@test.com")
         writer_b_tokens = self._login(client, "writer3b@test.com")
 
         # Writer A creates post
@@ -149,11 +148,11 @@ class TestPaywallAPI:
     def test_allocation_swap_consumes_credit(self, client):
         """Test that swapping allocation consumes change credit."""
         # Register two writers
-        self._register_user(client, "writer4a@test.com", role="writer")
+        self._register_user(client, "writer4a@test.com")
         writer_a_tokens = self._login(client, "writer4a@test.com")
         writer_a_id = self._get_user_id_from_token(writer_a_tokens["access_token"])
 
-        self._register_user(client, "writer4b@test.com", role="writer")
+        self._register_user(client, "writer4b@test.com")
         writer_b_tokens = self._login(client, "writer4b@test.com")
         writer_b_id = self._get_user_id_from_token(writer_b_tokens["access_token"])
 
@@ -185,7 +184,7 @@ class TestPaywallAPI:
     def test_allocation_release_consumes_credit(self, client):
         """Test that releasing allocation consumes change credit."""
         # Register writer
-        self._register_user(client, "writer5@test.com", role="writer")
+        self._register_user(client, "writer5@test.com")
         writer_tokens = self._login(client, "writer5@test.com")
         writer_id = self._get_user_id_from_token(writer_tokens["access_token"])
 
@@ -204,15 +203,15 @@ class TestPaywallAPI:
     def test_no_credits_prevents_swap(self, client):
         """Test that zero credits prevents swap."""
         # Register three writers
-        self._register_user(client, "writer6a@test.com", role="writer")
+        self._register_user(client, "writer6a@test.com")
         writer_a_tokens = self._login(client, "writer6a@test.com")
         writer_a_id = self._get_user_id_from_token(writer_a_tokens["access_token"])
 
-        self._register_user(client, "writer6b@test.com", role="writer")
+        self._register_user(client, "writer6b@test.com")
         writer_b_tokens = self._login(client, "writer6b@test.com")
         writer_b_id = self._get_user_id_from_token(writer_b_tokens["access_token"])
 
-        self._register_user(client, "writer6c@test.com", role="writer")
+        self._register_user(client, "writer6c@test.com")
         writer_c_tokens = self._login(client, "writer6c@test.com")
         writer_c_id = self._get_user_id_from_token(writer_c_tokens["access_token"])
 
@@ -247,7 +246,7 @@ class TestPaywallAPI:
 
     def test_writer_can_see_own_subscriber_content(self, client):
         """Test that writers can see their own subscriber content."""
-        self._register_user(client, "writer7@test.com", role="writer")
+        self._register_user(client, "writer7@test.com")
         writer_tokens = self._login(client, "writer7@test.com")
 
         post_resp = self._create_post(client, writer_tokens["access_token"],

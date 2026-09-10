@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request
+from typing import Any
+
+from flask import Blueprint, Response, jsonify, request
 from uuid import UUID
 from werkzeug.exceptions import BadRequest, NotFound
 
@@ -12,7 +14,7 @@ writers_bp = Blueprint("writers", __name__, url_prefix="/api/v1/writers")
 
 
 @writers_bp.route("", methods=["GET"])
-def list_writers() -> tuple:
+def list_writers() -> Response | tuple[Any, ...]:
     """Searchable list of public writers."""
     from backend.src.identity.adapters.sqlalchemy_repository import (
         SqlAlchemyUserRepository,
@@ -43,7 +45,7 @@ def list_writers() -> tuple:
 
 
 @writers_bp.route("/<writer_id>", methods=["GET"])
-def get_writer(writer_id: str) -> tuple:
+def get_writer(writer_id: str) -> Response | tuple[Any, ...]:
     """Writer profile & past newsletters (paywall-masked for non-subscribers)."""
     try:
         writer_uuid = UUID(writer_id)

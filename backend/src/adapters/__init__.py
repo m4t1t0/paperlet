@@ -14,7 +14,7 @@ def create_payment_gateway() -> PaymentGatewayAdapter:
     settings = get_settings()
     if settings.payment_gateway == "stripe":
         # TODO: Implement StripePaymentGateway
-        from backend.src.adapters.stripe_payments import StripePaymentGateway
+        from backend.src.adapters.stripe_payments import StripePaymentGateway  # type: ignore[import-not-found]
         return StripePaymentGateway(
             secret_key=settings.stripe_secret_key,
             webhook_secret=settings.stripe_webhook_secret,

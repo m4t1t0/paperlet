@@ -1,12 +1,15 @@
 """Publishing API routes."""
 
 from __future__ import annotations
-from flask import Blueprint, jsonify, request
+from typing import Any, cast
+
+from flask import Blueprint, Response, jsonify, request
 from werkzeug.exceptions import BadRequest, NotFound
 from uuid import UUID
 
 from backend.src.identity.api_auth import (
     get_current_reader,
+    get_current_user,
     get_current_writer,
     get_optional_reader,
 )
@@ -31,13 +34,17 @@ def get_bus() -> MessageBus:
     """Get message bus from app context."""
     from flask import current_app
 
-    return current_app.message_bus
+    return cast(MessageBus, getattr(current_app, "message_bus"))
 
 
 @posts_bp.route("", methods=["POST"])
-def create_post() -> tuple:
-    """Create a draft or scheduled post."""
-    writer = get_current_writer()
+def create_post() -> Response | tuple[Any, ...]:
+    """Create a draft or scheduled post.
+
+    Any authenticated user may create a first post — doing so grants the
+    WRITER capability (roles are inferred from activity, not signup).
+    """
+    writer = get_current_user()
     data = request.get_json() or {}
 
     title = data.get("title", "").strip()
@@ -52,6 +59,7 @@ def create_post() -> tuple:
 
     bus = get_bus()
 
+    command: CreatePostCommand | CreateScheduledPostCommand
     if scheduled_at:
         from datetime import datetime
 
@@ -91,7 +99,7 @@ def create_post() -> tuple:
 
 
 @posts_bp.route("/<post_id>/publish", methods=["POST"])
-def publish_post(post_id: str) -> tuple:
+def publish_post(post_id: str) -> Response | tuple[Any, ...]:
     """Publish a post immediately."""
     writer = get_current_writer()
 
@@ -117,7 +125,7 @@ def publish_post(post_id: str) -> tuple:
 
 
 @posts_bp.route("/<post_id>/schedule", methods=["POST"])
-def schedule_post(post_id: str) -> tuple:
+def schedule_post(post_id: str) -> Response | tuple[Any, ...]:
     """Schedule a draft post."""
     writer = get_current_writer()
     data = request.get_json() or {}
@@ -157,7 +165,7 @@ def schedule_post(post_id: str) -> tuple:
 
 
 @posts_bp.route("/<post_id>", methods=["DELETE"])
-def cancel_post(post_id: str) -> tuple:
+def cancel_post(post_id: str) -> Response | tuple[Any, ...]:
     """Cancel a scheduled post."""
     writer = get_current_writer()
 
@@ -180,7 +188,7 @@ def cancel_post(post_id: str) -> tuple:
 
 
 @posts_bp.route("/<post_id>", methods=["PATCH"])
-def update_post(post_id: str) -> tuple:
+def update_post(post_id: str) -> Response | tuple[Any, ...]:
     """Update post content."""
     writer = get_current_writer()
     data = request.get_json() or {}
@@ -211,7 +219,7 @@ def update_post(post_id: str) -> tuple:
 
 
 @posts_bp.route("/<post_id>", methods=["GET"])
-def get_post(post_id: str) -> tuple:
+def get_post(post_id: str) -> Response | tuple[Any, ...]:
     """Get a single post with paywall logic (public preview, no auth required)."""
     reader = get_optional_reader()
 
@@ -236,7 +244,7 @@ def get_post(post_id: str) -> tuple:
 
 
 @posts_bp.route("/feed", methods=["GET"])
-def get_feed() -> tuple:
+def get_feed() -> Response | tuple[Any, ...]:
     """Get reader's feed of posts from allocated writers."""
     reader = get_current_reader()
 
@@ -251,7 +259,7 @@ def get_feed() -> tuple:
 
 
 @posts_bp.route("/writer", methods=["GET"])
-def get_writer_posts() -> tuple:
+def get_writer_posts() -> Response | tuple[Any, ...]:
     """Get current writer's posts."""
     writer = get_current_writer()
 

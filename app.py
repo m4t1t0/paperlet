@@ -341,6 +341,7 @@ def _register_handlers(bus: MessageBus) -> None:
                 SubscriptionService(
                     SqlAlchemySubscriptionRepository(uow.session), create_payment_gateway()
                 ),
+                SqlAlchemyUserRepository(uow.session),
             ),
         ),
     )
@@ -362,7 +363,8 @@ def _register_handlers(bus: MessageBus) -> None:
         _command_handler_with_uow(
             bus,
             lambda uow, b: AssignAllocationHandler(
-                SqlAlchemySubscriptionRepository(uow.session)
+                SqlAlchemySubscriptionRepository(uow.session),
+                SqlAlchemyUserRepository(uow.session),
             ),
         ),
     )
@@ -373,7 +375,8 @@ def _register_handlers(bus: MessageBus) -> None:
         _command_handler_with_uow(
             bus,
             lambda uow, b: SwapAllocationHandler(
-                SqlAlchemySubscriptionRepository(uow.session)
+                SqlAlchemySubscriptionRepository(uow.session),
+                SqlAlchemyUserRepository(uow.session),
             ),
         ),
     )
@@ -462,7 +465,8 @@ def _register_handlers(bus: MessageBus) -> None:
     def _make_publishing_service(uow, b):
         post_repo = SqlAlchemyPostRepository(uow.session)
         sub_repo = SqlAlchemySubscriptionRepository(uow.session)
-        return PublishingService(post_repo, sub_repo, b)
+        user_repo = SqlAlchemyUserRepository(uow.session)
+        return PublishingService(post_repo, sub_repo, b, user_repo)
 
     bus.register_command(
         __import__(

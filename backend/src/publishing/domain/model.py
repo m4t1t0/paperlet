@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 from backend.src.shared.domain.events import AggregateRoot, DomainEvent
@@ -197,7 +197,7 @@ class Post(AggregateRoot):
         )
         # Writers can see their own subscriber content
         is_writer = reader_id is not None and reader_id == self.writer_id
-        content = {
+        content: dict[str, Any] = {
             "id": str(self.id),
             "writer_id": str(self.writer_id),
             "title": self.title,

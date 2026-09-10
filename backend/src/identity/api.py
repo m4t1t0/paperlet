@@ -1,7 +1,9 @@
 """Identity API routes."""
 
 from __future__ import annotations
-from flask import Blueprint, jsonify, request
+from typing import Any, cast
+
+from flask import Blueprint, Response, jsonify, request
 from werkzeug.exceptions import BadRequest
 
 from backend.src.identity.api_auth import get_bearer_user_id
@@ -11,11 +13,7 @@ from backend.src.identity.commands import (
     RefreshTokenCommand,
     RegisterCommand,
 )
-from backend.src.identity.domain.model import UserRole
 from backend.src.shared.service_layer.messagebus import MessageBus
-
-# Re-export for type checking
-__all__ = ["UserRole"]
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/v1/auth")
 
@@ -24,26 +22,25 @@ def get_bus() -> MessageBus:
     """Get message bus from app context."""
     from flask import current_app
 
-    return current_app.message_bus
+    return cast(MessageBus, getattr(current_app, "message_bus"))
 
 
 @auth_bp.route("/register", methods=["POST"])
-def register() -> tuple:
-    """Register a new user."""
+def register() -> Response | tuple[Any, ...]:
+    """Register a new user (email + password only; no role).
+
+    Reader/Writer capabilities are inferred from activity, never chosen at
+    signup: creating a post grants WRITER, subscribing/following grants READER.
+    A client-sent `role` field, if present, is ignored for backwards compat.
+    """
     data = request.get_json() or {}
     email = data.get("email", "").strip()
     password = data.get("password", "")
-    role_str = data.get("role", "reader")
 
     if not email or not password:
         raise BadRequest("Email and password are required")
 
-    try:
-        role = UserRole(role_str)
-    except ValueError:
-        raise BadRequest(f"Invalid role: {role_str}")
-
-    command = RegisterCommand(email=email, password=password, role=role)
+    command = RegisterCommand(email=email, password=password)
     bus = get_bus()
     user = bus.handle(command)
 
@@ -58,7 +55,7 @@ def register() -> tuple:
 
 
 @auth_bp.route("/login", methods=["POST"])
-def login() -> tuple:
+def login() -> Response | tuple[Any, ...]:
     """Login and get tokens."""
     data = request.get_json() or {}
     email = data.get("email", "").strip()
@@ -87,7 +84,7 @@ def login() -> tuple:
 
 
 @auth_bp.route("/refresh", methods=["POST"])
-def refresh() -> tuple:
+def refresh() -> Response | tuple[Any, ...]:
     """Refresh access token."""
     data = request.get_json() or {}
     refresh_token = data.get("refresh_token", "")
@@ -114,7 +111,7 @@ def refresh() -> tuple:
 
 
 @auth_bp.route("/me", methods=["GET"])
-def me() -> tuple:
+def me() -> Response | tuple[Any, ...]:
     """Get current user profile."""
     user_id = get_bearer_user_id()
     bus = get_bus()
