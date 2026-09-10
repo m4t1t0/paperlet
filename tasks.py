@@ -146,6 +146,15 @@ def typecheck(c):
 
 
 @task
+def openapi(c, check=False):
+    """Generate openapi.yaml (use --check to verify it's current)."""
+    cmd = [sys.executable, "scripts/generate_openapi.py"]
+    if check:
+        cmd.append("--check")
+    c.run(" ".join(cmd))
+
+
+@task
 def migrate(c, message=None):
     """Create a new migration."""
     from backend.src.shared.config import get_settings

@@ -60,7 +60,6 @@ class TestReaderExperience:
         assert body["status"] == 404
         assert body["title"] == "Not Found"
         assert body["detail"] == body["message"]
-        assert body["type"].endswith("/problems/not-found")
 
         # Writers catalog (public)
         resp = client.get("/api/v1/writers")
@@ -124,13 +123,14 @@ class TestRoleInference:
             json={"email": "norole@test.com", "password": "password123", "role": "writer"},
         )
         assert resp.status_code == 201
-        assert resp.get_json()["roles"] == []
+        body = resp.get_json()
+        assert body["email"] == "norole@test.com"
+        assert "roles" not in body
 
         tokens = _login(client, "norole@test.com")
         resp = client.get("/api/v1/auth/me", headers=_auth(client, tokens["access_token"]))
         assert resp.status_code == 200
         body = resp.get_json()
-        assert body["roles"] == []
         assert body["is_writer"] is False
         assert body["is_reader"] is False
 

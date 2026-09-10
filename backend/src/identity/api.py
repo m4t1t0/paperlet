@@ -48,7 +48,6 @@ def register() -> Response | tuple[Any, ...]:
         {
             "id": str(user.id),
             "email": user.email,
-            "roles": [r.value for r in user.roles],
             "created_at": user.created_at.isoformat(),
         }
     ), 201
@@ -125,7 +124,6 @@ def me() -> Response | tuple[Any, ...]:
         {
             "id": str(user.id),
             "email": user.email,
-            "roles": [r.value for r in user.roles],
             "created_at": user.created_at.isoformat(),
             "is_writer": user.is_writer(),
             "is_reader": user.is_reader(),

@@ -36,6 +36,7 @@ hypothesis==6.92.1
 python-json-logger==2.0.7
 structlog==24.4.0
 python-multipart==0.0.9
+pyyaml==6.0.3
 
 # Dev Tools
 invoke==2.2.1

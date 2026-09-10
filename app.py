@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 import os
+from typing import Any
+
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -38,11 +40,9 @@ def _decode_sub_unverified(token: str) -> str | None:
 
 
 def _problem(title: str, detail: str, code: str, status: int) -> tuple:
-    """RFC 7807 hybrid problem response (custom `code` + `message` alias)."""
-    slug = title.lower().replace(" ", "-")
+    """Error envelope (custom `code` + `message` alias of `detail`)."""
     return jsonify(
         {
-            "type": f"https://paperlet.local/problems/{slug}",
             "title": title,
             "status": status,
             "detail": detail,
@@ -69,7 +69,7 @@ def _check_redis() -> dict:
     try:
         import redis
 
-        client = redis.Redis.from_url(
+        client: Any = redis.Redis.from_url(
             get_settings().redis_url, socket_connect_timeout=2
         )
         client.ping()
@@ -177,7 +177,7 @@ def create_app(config_overrides: dict | None = None) -> Flask:
 
     # Create message bus
     message_bus = MessageBus()
-    app.message_bus = message_bus
+    app.message_bus = message_bus  # type: ignore[attr-defined]
 
     # Register blueprints
     from backend.src.identity.api import auth_bp
@@ -550,10 +550,9 @@ def _register_handlers(bus: MessageBus) -> None:
 
 
 # Only create global app when not testing
-if not os.environ.get("PYTEST_CURRENT_TEST"):
-    app = create_app()
-else:
-    app = None
+app: Flask | None = (
+    create_app() if not os.environ.get("PYTEST_CURRENT_TEST") else None
+)
 
 
 if __name__ == "__main__":

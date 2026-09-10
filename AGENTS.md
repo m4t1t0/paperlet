@@ -16,6 +16,7 @@ python -m invoke start      # Start server, no reloader (fast)
 python -m invoke develop    # Start server with hot reload
 python -m invoke stop       # Stop server
 python -m invoke restart    # Restart server (no reloader)
+python -m invoke openapi    # Regenerate openapi.yaml (use --check to verify)
 python -m invoke --list     # List all tasks
 ```
 
@@ -30,6 +31,7 @@ pip install -r requirements.txt
 - `tasks.py` - Invoke tasks for start/stop/restart
 - `requirements.txt` - Dependencies (flask, invoke, requests, sqlalchemy, marshmallow, pydantic, redis, httpx, alembic, etc.)
 - `PROMPT.md` - Product spec (authoritative)
+- `docs/openapi.yaml` - Generated API spec (do not edit; run `invoke openapi`)
 - `CONTEXT.md` - Ubiquitous language glossary
 - `docs/adr/` - Architecture Decision Records
 - `backend/src/identity/` - Authentication & User Management (single User, Reader/Writer capabilities, JWT); `api_auth.py` shared Flask auth helpers; `writers_api.py` Writers Catalog (`GET /api/v1/writers`)
