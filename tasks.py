@@ -11,11 +11,23 @@ from invoke import task
 
 
 @task
-def start(c, port=5000, debug=False):
-    """Start the Flask development server."""
+def start(c, port=5000):
+    """Start the Flask server (no reloader, fast)."""
+    _run_server(c, port=int(port), debug=False)
+
+
+@task
+def develop(c, port=5000):
+    """Start the Flask dev server with hot reload."""
+    _run_server(c, port=int(port), debug=True)
+
+
+def _run_server(c, port: int, debug: bool) -> None:
+    """Run app.py as a subprocess and wait until healthy."""
     env = os.environ.copy()
     env["FLASK_APP"] = "app.py"
     env["FLASK_ENV"] = "development" if debug else "production"
+    env["FLASK_DEBUG"] = "true" if debug else "false"
     env["PORT"] = str(port)
 
     cmd = [sys.executable, "app.py"]
@@ -79,11 +91,11 @@ def stop(c, port=5000):
 
 
 @task
-def restart(c, port=5000, debug=False):
-    """Restart the Flask server."""
+def restart(c, port=5000):
+    """Restart the Flask server (no reloader)."""
     stop(c, port)
     time.sleep(1)
-    start(c, port, debug)
+    start(c, port)
 
 
 @task

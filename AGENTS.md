@@ -12,9 +12,10 @@ Runs on http://localhost:5000
 ## Invoke Commands (Recommended)
 ```bash
 source .venv/bin/activate
-python -m invoke start      # Start server (waits until ready)
+python -m invoke start      # Start server, no reloader (fast)
+python -m invoke develop    # Start server with hot reload
 python -m invoke stop       # Stop server
-python -m invoke restart    # Restart server
+python -m invoke restart    # Restart server (no reloader)
 python -m invoke --list     # List all tasks
 ```
 
@@ -49,5 +50,5 @@ pip install -r requirements.txt
 - No writer payouts v1, counts only — see `docs/adr/0003-no-payouts-v1.md`
 - Email: stub log v1, provider interface for Mailchimp later — see `docs/adr/0004-no-email-v1-provider-ready.md`
 - Testing: pytest with unit, integration, and e2e (Flask client paywall checks)
-- Default port: 5000 (configurable via `invoke start --port=8080`)
-- Debug mode off by default for background runs (use `--debug=true` to enable)
+- Default port: 5000 (configurable via `invoke start --port=8080` / `PORT` env; honored by `app.py`)
+- `start` runs without reloader; `develop` enables it (`FLASK_DEBUG=true`)
