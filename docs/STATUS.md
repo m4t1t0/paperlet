@@ -19,7 +19,8 @@ built, what was deliberately deferred, and what is left**. Last updated after
 
 ## Built — backend (`backend/`, Flask + Cosmic Python)
 
-- **Identity**: `POST /register` (email + password only — **no role field**),
+- **Identity**: `POST /register` (email + password, optional profile fields —
+  **no role field**),
   `POST /login`, `POST /refresh` (rotating), `GET /me`
   (`id,email,created_at,is_writer,is_reader` — no `roles` array). Stateless JWT
   (15 min access + 30 day refresh), `sessions` table, writers catalog
@@ -44,12 +45,17 @@ built, what was deliberately deferred, and what is left**. Last updated after
 ## Built — frontend (`frontend/`, Vue 3 + Vite + TS)
 
 Scaffold plus functional views against the real API: catalog home, login /
-register, **reader dashboard** (slot cards, change-budget indicator,
-subscribe/assign/swap/release, feed), **writer dashboard** (split
-preview/subscriber form, scheduling, own posts + publish), post view with
-paywall banner, writer detail. Typed client in `src/api/` generated from the
-spec; `VITE_API_URL` defaults to `http://localhost:5000` (backend CORS already
-allows `:5173`).
+register (with first/last name), **reader dashboard** (slot cards,
+change-budget indicator, subscribe/assign/swap/release, feed), **writer
+dashboard** (split preview/subscriber form, scheduling, own posts + publish),
+post view with paywall banner, writer detail. The logged-out homepage mirrors
+Substack (sidebar nav, hero, public recent-posts feed with author
+avatar/name, signup card, cookie-consent banner). Typed client in `src/api/`
+generated from the spec; `VITE_API_URL` defaults to `http://localhost:5000`
+(backend CORS already allows `:5173`). User profiles carry
+first_name/last_name/avatar_url (`users` migration `0005`); post views expose
+`writer_name`/`writer_avatar_url`; `GET /api/v1/posts/recent` serves the
+public masked feed.
 
 ## Deliberately out of scope (see `docs/adr/`)
 

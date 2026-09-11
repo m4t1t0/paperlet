@@ -69,18 +69,31 @@ class User(AggregateRoot):
     email: str = ""
     password_hash: str = ""
     roles: set[UserRole] = field(default_factory=set)
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     is_active: bool = True
     _events: list = field(default_factory=list, init=False, repr=False)
 
     @classmethod
-    def register(cls, email: str, password_hash: str) -> User:
+    def register(
+        cls,
+        email: str,
+        password_hash: str,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        avatar_url: Optional[str] = None,
+    ) -> User:
         """Register a new user (no roles — inferred later from activity)."""
         user = cls(
             email=email.lower().strip(),
             password_hash=password_hash,
             roles=set(),
+            first_name=first_name,
+            last_name=last_name,
+            avatar_url=avatar_url,
         )
         user.add_event(
             UserRegistered(
@@ -90,6 +103,14 @@ class User(AggregateRoot):
             )
         )
         return user
+
+    @property
+    def display_name(self) -> str:
+        """Public display name (falls back to the email local part)."""
+        full = " ".join(
+            part for part in (self.first_name, self.last_name) if part and part.strip()
+        ).strip()
+        return full or self.email.split("@")[0]
 
     def add_role(self, role: UserRole) -> None:
         """Add a capability/role to the user."""

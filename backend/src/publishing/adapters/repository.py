@@ -36,6 +36,11 @@ class PostRepository(ABC):
         ...
 
     @abstractmethod
+    def get_recent_published(self, limit: int = 10) -> list[Post]:
+        """Get latest published posts across writers (public homepage feed)."""
+        ...
+
+    @abstractmethod
     def get_scheduled_for_publishing(self) -> list[Post]:
         """Get posts scheduled for publishing now."""
         ...

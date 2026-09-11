@@ -27,6 +27,9 @@ users_table = Table(
     ),
     Column("is_active", Boolean, default=True, nullable=False),
     Column("roles", Text, default="[]", nullable=False),  # JSON array of role strings
+    Column("first_name", String(120), nullable=True),
+    Column("last_name", String(120), nullable=True),
+    Column("avatar_url", Text, nullable=True),
 )
 
 sessions_table = Table(

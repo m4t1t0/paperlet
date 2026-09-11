@@ -59,3 +59,12 @@ class SqlAlchemyPostRepository(PostRepository):
             .filter(cast(Any, Post.scheduled_for) <= now)
             .all()
         )
+
+    def get_recent_published(self, limit: int = 10) -> list[Post]:
+        return (
+            self._session.query(Post)
+            .filter_by(status=PostStatus.PUBLISHED)
+            .order_by(desc(cast(Any, Post.published_at)))
+            .limit(limit)
+            .all()
+        )

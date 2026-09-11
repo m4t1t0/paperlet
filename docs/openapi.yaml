@@ -583,6 +583,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/v1/posts/recent:
+    get:
+      summary: Latest published posts
+      tags:
+      - Publishing
+      description: Public homepage feed, always preview-masked.
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        description: Max posts to return.
+        schema:
+          type: integer
+          default: 10
+          maximum: 50
+      responses:
+        '200':
+          description: Recent posts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecentPosts'
   /api/v1/posts/feed:
     get:
       summary: Reader feed from allocated writers
@@ -718,6 +740,12 @@ components:
         password:
           type: string
           format: password
+        first_name:
+          type: string
+        last_name:
+          type: string
+        avatar_url:
+          type: string
       description: 'No role field: capabilities are inferred from activity. A client-sent
         `role`, if present, is ignored.'
     RegisteredUser:
@@ -777,6 +805,10 @@ components:
       required:
       - id
       - email
+      - display_name
+      - first_name
+      - last_name
+      - avatar_url
       - created_at
       - is_writer
       - is_reader
@@ -786,6 +818,13 @@ components:
           format: uuid
         email:
           type: string
+        display_name:
+          type: string
+        first_name: &id002
+          type: string
+          nullable: true
+        last_name: *id002
+        avatar_url: *id002
         created_at:
           type: string
           format: date-time
@@ -807,6 +846,8 @@ components:
       - created_at
       - subscriber_content
       - has_full_access
+      - writer_name
+      - writer_avatar_url
       properties:
         id:
           type: string
@@ -821,18 +862,18 @@ components:
         status:
           type: string
           example: published
-        published_at: &id002
+        published_at: &id003
           type: string
           format: date-time
           nullable: true
         created_at:
           type: string
           format: date-time
-        subscriber_content: &id003
-          type: string
-          nullable: true
+        subscriber_content: *id002
         has_full_access:
           type: boolean
+        writer_name: *id002
+        writer_avatar_url: *id002
     CreatePostRequest:
       type: object
       required:
@@ -866,7 +907,7 @@ components:
           type: string
         status:
           type: string
-        scheduled_for: *id002
+        scheduled_for: *id003
         created_at:
           type: string
           format: date-time
@@ -885,7 +926,7 @@ components:
           type: string
         status:
           type: string
-        published_at: *id002
+        published_at: *id003
     ScheduledPost:
       type: object
       required:
@@ -901,7 +942,7 @@ components:
           type: string
         status:
           type: string
-        scheduled_for: *id002
+        scheduled_for: *id003
     CancelledPost:
       type: object
       required:
@@ -953,7 +994,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PostView'
-        next_cursor: *id003
+        next_cursor: *id002
+    RecentPosts:
+      type: object
+      description: Latest published posts, always preview-masked (public).
+      required:
+      - posts
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostView'
     WriterPost:
       type: object
       description: Full post for the owning writer (no paywall masking).
@@ -978,8 +1029,8 @@ components:
           type: string
         subscriber_content:
           type: string
-        scheduled_for: *id002
-        published_at: *id002
+        scheduled_for: *id003
+        published_at: *id003
         created_at:
           type: string
           format: date-time
@@ -997,6 +1048,10 @@ components:
       required:
       - id
       - email
+      - display_name
+      - first_name
+      - last_name
+      - avatar_url
       - created_at
       properties:
         id:
@@ -1004,6 +1059,11 @@ components:
           format: uuid
         email:
           type: string
+        display_name:
+          type: string
+        first_name: *id002
+        last_name: *id002
+        avatar_url: *id002
         created_at:
           type: string
           format: date-time
@@ -1024,6 +1084,10 @@ components:
       required:
       - id
       - email
+      - display_name
+      - first_name
+      - last_name
+      - avatar_url
       - created_at
       - subscriber_post_count
       - posts
@@ -1033,6 +1097,11 @@ components:
           format: uuid
         email:
           type: string
+        display_name:
+          type: string
+        first_name: *id002
+        last_name: *id002
+        avatar_url: *id002
         created_at:
           type: string
           format: date-time
@@ -1053,7 +1122,7 @@ components:
           format: uuid
           nullable: true
           description: Null for an empty slot.
-        allocated_at: *id002
+        allocated_at: *id003
     AllocationSummary:
       type: object
       description: Reader subscription state. When no subscription exists, `subscription_id`/`billing_cycle_start`
@@ -1076,7 +1145,7 @@ components:
         status:
           type: string
           example: active
-        billing_cycle_start: *id002
+        billing_cycle_start: *id003
         change_credits_remaining:
           type: integer
         change_credits_per_cycle:

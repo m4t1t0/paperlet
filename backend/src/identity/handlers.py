@@ -26,7 +26,13 @@ class RegisterHandler(CommandHandler[RegisterCommand, User]):
         self._auth = AuthService(user_repo, session_repo, jwt_service)
 
     def handle(self, command: RegisterCommand) -> User:
-        return self._auth.register(command.email, command.password)
+        return self._auth.register(
+            command.email,
+            command.password,
+            first_name=command.first_name,
+            last_name=command.last_name,
+            avatar_url=command.avatar_url,
+        )
 
 
 class LoginHandler(CommandHandler[LoginCommand, TokenPair]):

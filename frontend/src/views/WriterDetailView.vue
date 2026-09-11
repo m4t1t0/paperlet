@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import { api, type WriterDetail } from "../api/client";
+import Avatar from "../components/Avatar.vue";
 
 const route = useRoute();
 const writer = ref<WriterDetail | null>(null);
@@ -20,8 +21,14 @@ onMounted(async () => {
   <div>
     <p v-if="error" class="text-red-600">{{ error }}</p>
     <div v-else-if="writer">
-      <h1 class="mb-1 text-2xl font-bold">{{ writer.email }}</h1>
-      <p class="mb-6 text-sm text-stone-500">
+      <div class="mb-1 flex items-center gap-3">
+        <Avatar :name="writer.display_name" :avatar-url="writer.avatar_url" size="h-12 w-12" />
+        <div>
+          <h1 class="text-2xl font-bold">{{ writer.display_name }}</h1>
+          <p class="text-sm text-stone-500">{{ writer.email }}</p>
+        </div>
+      </div>
+      <p class="mb-6 mt-2 text-sm text-stone-500">
         {{ writer.subscriber_post_count }} published posts
       </p>
       <ul class="space-y-3">

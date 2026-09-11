@@ -50,6 +50,29 @@ class TestUserRepository:
             assert repo.get_by_email(email).id == user_id
             assert any(u.id == user_id for u in repo.list())
 
+    def test_profile_fields_round_trip(self) -> None:
+        email = _unique_email("uprof")
+        with SqlAlchemyUnitOfWork() as uow:
+            repo = SqlAlchemyUserRepository(uow.session)
+            user = User.register(
+                email,
+                "hash-not-bcrypt",
+                first_name="Ada",
+                last_name="Lovelace",
+                avatar_url="https://example.com/a.png",
+            )
+            user_id = user.id
+            repo.add(user)
+            uow.commit()
+
+        with SqlAlchemyUnitOfWork() as uow:
+            loaded = SqlAlchemyUserRepository(uow.session).get(user_id)
+            assert loaded is not None
+            assert loaded.first_name == "Ada"
+            assert loaded.last_name == "Lovelace"
+            assert loaded.avatar_url == "https://example.com/a.png"
+            assert loaded.display_name == "Ada Lovelace"
+
     def test_add_role_persists(self) -> None:
         email = _unique_email("urole")
         with SqlAlchemyUnitOfWork() as uow:

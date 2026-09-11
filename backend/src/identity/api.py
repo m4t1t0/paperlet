@@ -40,7 +40,17 @@ def register() -> Response | tuple[Any, ...]:
     if not email or not password:
         raise BadRequest("Email and password are required")
 
-    command = RegisterCommand(email=email, password=password)
+    def _optional_str(value: object) -> str | None:
+        text = str(value).strip() if value is not None else ""
+        return text or None
+
+    command = RegisterCommand(
+        email=email,
+        password=password,
+        first_name=_optional_str(data.get("first_name")),
+        last_name=_optional_str(data.get("last_name")),
+        avatar_url=_optional_str(data.get("avatar_url")),
+    )
     bus = get_bus()
     user = bus.handle(command)
 
@@ -124,6 +134,10 @@ def me() -> Response | tuple[Any, ...]:
         {
             "id": str(user.id),
             "email": user.email,
+            "display_name": user.display_name,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "avatar_url": user.avatar_url,
             "created_at": user.created_at.isoformat(),
             "is_writer": user.is_writer(),
             "is_reader": user.is_reader(),

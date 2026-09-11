@@ -74,8 +74,16 @@ const patch = <T>(path: string, body?: unknown): Promise<T> =>
 const del = <T>(path: string): Promise<T> => call<T>(path, { method: "DELETE" });
 
 export const api = {
-  register: (email: string, password: string) =>
-    post<S["RegisteredUser"]>("/api/v1/auth/register", { email, password }),
+  register: (
+    email: string,
+    password: string,
+    profile?: { first_name?: string; last_name?: string; avatar_url?: string },
+  ) =>
+    post<S["RegisteredUser"]>("/api/v1/auth/register", {
+      email,
+      password,
+      ...profile,
+    }),
   login: (email: string, password: string) =>
     post<TokenPair>("/api/v1/auth/login", { email, password }),
   me: () => get<Profile>("/api/v1/auth/me"),
@@ -110,6 +118,7 @@ export const api = {
     get<Feed>(
       `/api/v1/posts/feed?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
     ),
+  recent: (limit = 10) => get<S["RecentPosts"]>(`/api/v1/posts/recent?limit=${limit}`),
   writerPosts: (status?: string) =>
     get<WriterPosts>(`/api/v1/posts/writer${status ? `?status=${status}` : ""}`),
   updatePost: (id: string, input: { title?: string; preview_content?: string; subscriber_content?: string }) =>

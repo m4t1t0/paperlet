@@ -21,6 +21,7 @@ from backend.src.publishing.commands import (
     CreateScheduledPostCommand,
     GetFeedCommand,
     GetPostCommand,
+    GetRecentPostsCommand,
     GetWriterPostsCommand,
     PublishPostCommand,
     SchedulePostCommand,
@@ -241,6 +242,15 @@ def get_post(post_id: str) -> Response | tuple[Any, ...]:
         raise BadRequest(str(e))
 
     return jsonify(result)
+
+
+@posts_bp.route("/recent", methods=["GET"])
+def get_recent_posts() -> Response | tuple[Any, ...]:
+    """Get latest published posts (public, preview-masked — homepage feed)."""
+    limit = request.args.get("limit", 10, type=int)
+    command = GetRecentPostsCommand(limit=max(1, min(limit, 50)))
+    bus = get_bus()
+    return jsonify(bus.handle(command))
 
 
 @posts_bp.route("/feed", methods=["GET"])

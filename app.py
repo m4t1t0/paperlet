@@ -452,6 +452,7 @@ def _register_handlers(bus: MessageBus) -> None:
         CreateScheduledPostHandler,
         GetFeedHandler,
         GetPostHandler,
+        GetRecentPostsHandler,
         GetWriterPostsHandler,
         PublishPostHandler,
         PublishingService,
@@ -536,6 +537,14 @@ def _register_handlers(bus: MessageBus) -> None:
             "backend.src.publishing.commands", fromlist=["GetFeedCommand"]
         ).GetFeedCommand,
         _command_handler_with_uow(bus, lambda uow, b: GetFeedHandler(_make_publishing_service(uow, b))),
+    )
+    bus.register_command(
+        __import__(
+            "backend.src.publishing.commands", fromlist=["GetRecentPostsCommand"]
+        ).GetRecentPostsCommand,
+        _command_handler_with_uow(
+            bus, lambda uow, b: GetRecentPostsHandler(_make_publishing_service(uow, b))
+        ),
     )
 
     # Event handlers for Celery tasks

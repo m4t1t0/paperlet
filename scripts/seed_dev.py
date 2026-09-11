@@ -38,22 +38,30 @@ def seed() -> None:
         reader1 = User.register(
             email="reader1@example.com",
             password_hash=User.hash_password("password123"),
+            first_name="Alice",
+            last_name="Reader",
         )
         reader1.add_role(UserRole.READER)
         reader2 = User.register(
             email="reader2@example.com",
             password_hash=User.hash_password("password123"),
+            first_name="Bob",
+            last_name="Reader",
         )
         reader2.add_role(UserRole.READER)
         writer1 = User.register(
             email="writer1@example.com",
             password_hash=User.hash_password("password123"),
+            first_name="Carol",
+            last_name="Writer",
         )
         writer1.add_role(UserRole.WRITER)
         writer1.add_role(UserRole.READER)  # Writers can also be readers
         writer2 = User.register(
             email="writer2@example.com",
             password_hash=User.hash_password("password123"),
+            first_name="David",
+            last_name="Writer",
         )
         writer2.add_role(UserRole.WRITER)
         writer2.add_role(UserRole.READER)

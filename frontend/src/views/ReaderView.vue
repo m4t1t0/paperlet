@@ -155,6 +155,7 @@ async function run(fn: () => Promise<unknown>): Promise<void> {
           >
             Preview
           </span>
+          <p class="mt-0.5 text-xs text-stone-400">{{ p.writer_name }}</p>
           <p class="mt-1 text-sm text-stone-600">{{ p.preview_content }}</p>
         </li>
       </ul>

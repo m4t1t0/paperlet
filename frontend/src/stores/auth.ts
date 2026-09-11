@@ -19,8 +19,12 @@ export const useAuthStore = defineStore("auth", () => {
     await fetchProfile();
   }
 
-  async function register(email: string, password: string): Promise<void> {
-    await api.register(email, password);
+  async function register(
+    email: string,
+    password: string,
+    profile?: { first_name?: string; last_name?: string; avatar_url?: string },
+  ): Promise<void> {
+    await api.register(email, password, profile);
     await login(email, password);
   }
 

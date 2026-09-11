@@ -132,6 +132,9 @@ SCHEMAS: dict[str, Any] = {
         "properties": {
             "email": {"type": "string", "format": "email"},
             "password": {"type": "string", "format": "password"},
+            "first_name": {"type": "string"},
+            "last_name": {"type": "string"},
+            "avatar_url": {"type": "string"},
         },
         "description": (
             "No role field: capabilities are inferred from activity. "
@@ -172,10 +175,24 @@ SCHEMAS: dict[str, Any] = {
     },
     "Profile": {
         "type": "object",
-        "required": ["id", "email", "created_at", "is_writer", "is_reader"],
+        "required": [
+            "id",
+            "email",
+            "display_name",
+            "first_name",
+            "last_name",
+            "avatar_url",
+            "created_at",
+            "is_writer",
+            "is_reader",
+        ],
         "properties": {
             "id": {"type": "string", "format": "uuid"},
             "email": {"type": "string"},
+            "display_name": {"type": "string"},
+            "first_name": _NULLABLE_STR,
+            "last_name": _NULLABLE_STR,
+            "avatar_url": _NULLABLE_STR,
             "created_at": {"type": "string", "format": "date-time"},
             "is_writer": {"type": "boolean"},
             "is_reader": {"type": "boolean"},
@@ -197,6 +214,8 @@ SCHEMAS: dict[str, Any] = {
             "created_at",
             "subscriber_content",
             "has_full_access",
+            "writer_name",
+            "writer_avatar_url",
         ],
         "properties": {
             "id": {"type": "string", "format": "uuid"},
@@ -208,6 +227,8 @@ SCHEMAS: dict[str, Any] = {
             "created_at": {"type": "string", "format": "date-time"},
             "subscriber_content": _NULLABLE_STR,
             "has_full_access": {"type": "boolean"},
+            "writer_name": _NULLABLE_STR,
+            "writer_avatar_url": _NULLABLE_STR,
         },
     },
     "CreatePostRequest": {
@@ -290,6 +311,12 @@ SCHEMAS: dict[str, Any] = {
             "next_cursor": _NULLABLE_STR,
         },
     },
+    "RecentPosts": {
+        "type": "object",
+        "description": "Latest published posts, always preview-masked (public).",
+        "required": ["posts"],
+        "properties": {"posts": {"type": "array", "items": _ref("PostView")}},
+    },
     "WriterPost": {
         "type": "object",
         "description": "Full post for the owning writer (no paywall masking).",
@@ -321,10 +348,22 @@ SCHEMAS: dict[str, Any] = {
     },
     "WriterSummary": {
         "type": "object",
-        "required": ["id", "email", "created_at"],
+        "required": [
+            "id",
+            "email",
+            "display_name",
+            "first_name",
+            "last_name",
+            "avatar_url",
+            "created_at",
+        ],
         "properties": {
             "id": {"type": "string", "format": "uuid"},
             "email": {"type": "string"},
+            "display_name": {"type": "string"},
+            "first_name": _NULLABLE_STR,
+            "last_name": _NULLABLE_STR,
+            "avatar_url": _NULLABLE_STR,
             "created_at": {"type": "string", "format": "date-time"},
         },
     },
@@ -338,10 +377,24 @@ SCHEMAS: dict[str, Any] = {
     },
     "WriterDetail": {
         "type": "object",
-        "required": ["id", "email", "created_at", "subscriber_post_count", "posts"],
+        "required": [
+            "id",
+            "email",
+            "display_name",
+            "first_name",
+            "last_name",
+            "avatar_url",
+            "created_at",
+            "subscriber_post_count",
+            "posts",
+        ],
         "properties": {
             "id": {"type": "string", "format": "uuid"},
             "email": {"type": "string"},
+            "display_name": {"type": "string"},
+            "first_name": _NULLABLE_STR,
+            "last_name": _NULLABLE_STR,
+            "avatar_url": _NULLABLE_STR,
             "created_at": {"type": "string", "format": "date-time"},
             "subscriber_post_count": {"type": "integer"},
             "posts": {"type": "array", "items": _ref("PostView")},
@@ -758,6 +811,27 @@ PATHS: list[dict[str, Any]] = [
                 "200": _json_response("Paywall-applied post.", _ref("PostView")),
                 "400": _error_response("Invalid post_id format."),
                 "404": _error_response("Post not found."),
+            },
+        ),
+    },
+    {
+        "path": "/api/v1/posts/recent",
+        "methods": ["GET"],
+        "op": _op(
+            "Latest published posts",
+            tags=["Publishing"],
+            auth=False,
+            description="Public homepage feed, always preview-masked.",
+            parameters=[
+                _param(
+                    "limit",
+                    required=False,
+                    schema={"type": "integer", "default": 10, "maximum": 50},
+                    description="Max posts to return.",
+                ),
+            ],
+            responses={
+                "200": _json_response("Recent posts.", _ref("RecentPosts")),
             },
         ),
     },

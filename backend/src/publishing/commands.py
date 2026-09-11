@@ -89,3 +89,10 @@ class GetFeedCommand(Command):
     reader_id: ReaderId
     limit: int = 20
     cursor: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class GetRecentPostsCommand(Command):
+    """Command to get latest published posts (public homepage feed)."""
+
+    limit: int = 10

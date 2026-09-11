@@ -111,14 +111,27 @@ class AuthService:
         self._jwt = jwt_service
         self._settings = get_settings()
 
-    def register(self, email: str, password: str) -> User:
+    def register(
+        self,
+        email: str,
+        password: str,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        avatar_url: Optional[str] = None,
+    ) -> User:
         """Register a new user (no roles — inferred later from activity)."""
         existing = self._user_repo.get_by_email(email)
         if existing:
             raise ValueError("Email already registered")
 
         password_hash = User.hash_password(password)
-        user = User.register(email, password_hash)
+        user = User.register(
+            email,
+            password_hash,
+            first_name=first_name,
+            last_name=last_name,
+            avatar_url=avatar_url,
+        )
         self._user_repo.add(user)
         return user
 

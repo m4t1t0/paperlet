@@ -14,6 +14,9 @@ class RegisterCommand(Command):
 
     email: str
     password: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 
 @dataclass(frozen=True)

@@ -9,6 +9,7 @@ from backend.src.publishing.commands import (
     CreateScheduledPostCommand,
     GetFeedCommand,
     GetPostCommand,
+    GetRecentPostsCommand,
     GetWriterPostsCommand,
     PublishPostCommand,
     SchedulePostCommand,
@@ -42,6 +43,17 @@ class PublishingService:
         user = self._user_repo.get(writer_id)
         if user is not None:
             user.add_role(UserRole.WRITER)
+
+    def _author_card(self, writer_id) -> dict:
+        """Public author info for post views (avatar/name, no email)."""
+        user = self._user_repo.get(writer_id)
+        if user is None:
+            return {"writer_name": None, "writer_avatar_url": None}
+        return {"writer_name": user.display_name, "writer_avatar_url": user.avatar_url}
+
+    def _with_author(self, view: dict, writer_id) -> dict:
+        view.update(self._author_card(writer_id))
+        return view
 
     def create_draft(self, command: CreatePostCommand) -> Post:
         """Create a draft post."""
@@ -139,7 +151,12 @@ class PublishingService:
                 if sub_status == "active":
                     has_allocation = subscription.is_writer_allocated(post.writer_id)
 
-        return post.get_content_for_reader(has_allocation, command.reader_id.value if command.reader_id else None)
+        return self._with_author(
+            post.get_content_for_reader(
+                has_allocation, command.reader_id.value if command.reader_id else None
+            ),
+            post.writer_id,
+        )
 
     def get_writer_posts(self, command: GetWriterPostsCommand) -> list[Post]:
         """Get writer's posts."""
@@ -177,7 +194,10 @@ class PublishingService:
         for post in posts:
             has_allocation = subscription.is_writer_allocated(post.writer_id)
             post_data.append(
-                post.get_content_for_reader(has_allocation, command.reader_id.value)
+                self._with_author(
+                    post.get_content_for_reader(has_allocation, command.reader_id.value),
+                    post.writer_id,
+                )
             )
 
         next_cursor = None
@@ -187,6 +207,19 @@ class PublishingService:
             )
 
         return {"posts": post_data, "next_cursor": next_cursor}
+
+
+    def get_recent(self, command: GetRecentPostsCommand) -> dict:
+        """Get latest published posts (public preview-masked, for the homepage)."""
+        posts = self._post_repo.get_recent_published(command.limit)
+        return {
+            "posts": [
+                self._with_author(
+                    post.get_content_for_reader(False, None), post.writer_id
+                )
+                for post in posts
+            ]
+        }
 
 
 class CreatePostHandler(CommandHandler[CreatePostCommand, Post]):
@@ -277,3 +310,13 @@ class GetFeedHandler(CommandHandler[GetFeedCommand, dict]):
 
     def handle(self, command: GetFeedCommand) -> dict:
         return self._service.get_feed(command)
+
+
+class GetRecentPostsHandler(CommandHandler[GetRecentPostsCommand, dict]):
+    """Handler for getting latest published posts."""
+
+    def __init__(self, service: PublishingService) -> None:
+        self._service = service
+
+    def handle(self, command: GetRecentPostsCommand) -> dict:
+        return self._service.get_recent(command)

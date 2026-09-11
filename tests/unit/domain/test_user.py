@@ -66,6 +66,24 @@ class TestUser:
         assert user.verify_password(password)
         assert not user.verify_password("wrong_password")
 
+    def test_register_stores_profile_fields(self) -> None:
+        user = User.register(
+            "test@example.com",
+            "hash",
+            first_name="Ada",
+            last_name="Lovelace",
+            avatar_url="https://example.com/a.png",
+        )
+        assert user.first_name == "Ada"
+        assert user.last_name == "Lovelace"
+        assert user.avatar_url == "https://example.com/a.png"
+        assert user.display_name == "Ada Lovelace"
+
+    def test_display_name_falls_back_to_email(self) -> None:
+        assert User.register("test@example.com", "hash").display_name == "test"
+        partial = User.register("x@y.com", "hash", first_name="  Ada  ")
+        assert partial.display_name == "Ada"
+
     def test_email_normalization(self) -> None:
         user = User.register("  TEST@EXAMPLE.COM  ", "hash")
         assert user.email == "test@example.com"

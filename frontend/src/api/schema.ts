@@ -988,6 +988,48 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/posts/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Latest published posts
+         * @description Public homepage feed, always preview-masked.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Max posts to return. */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Recent posts. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RecentPosts"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/posts/feed": {
         parameters: {
             query?: never;
@@ -1194,6 +1236,9 @@ export interface components {
             email: string;
             /** Format: password */
             password: string;
+            first_name?: string;
+            last_name?: string;
+            avatar_url?: string;
         };
         RegisteredUser: {
             /** Format: uuid */
@@ -1223,6 +1268,10 @@ export interface components {
             /** Format: uuid */
             id: string;
             email: string;
+            display_name: string;
+            first_name: string | null;
+            last_name: string | null;
+            avatar_url: string | null;
             /** Format: date-time */
             created_at: string;
             is_writer: boolean;
@@ -1244,6 +1293,8 @@ export interface components {
             created_at: string;
             subscriber_content: string | null;
             has_full_access: boolean;
+            writer_name: string | null;
+            writer_avatar_url: string | null;
         };
         CreatePostRequest: {
             title: string;
@@ -1305,6 +1356,10 @@ export interface components {
             posts: components["schemas"]["PostView"][];
             next_cursor: string | null;
         };
+        /** @description Latest published posts, always preview-masked (public). */
+        RecentPosts: {
+            posts: components["schemas"]["PostView"][];
+        };
         /** @description Full post for the owning writer (no paywall masking). */
         WriterPost: {
             /** Format: uuid */
@@ -1327,6 +1382,10 @@ export interface components {
             /** Format: uuid */
             id: string;
             email: string;
+            display_name: string;
+            first_name: string | null;
+            last_name: string | null;
+            avatar_url: string | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -1338,6 +1397,10 @@ export interface components {
             /** Format: uuid */
             id: string;
             email: string;
+            display_name: string;
+            first_name: string | null;
+            last_name: string | null;
+            avatar_url: string | null;
             /** Format: date-time */
             created_at: string;
             subscriber_post_count: number;

@@ -120,7 +120,13 @@ class TestRoleInference:
         # A client-sent role is ignored for backwards compatibility.
         resp = client.post(
             "/api/v1/auth/register",
-            json={"email": "norole@test.com", "password": "password123", "role": "writer"},
+            json={
+                "email": "norole@test.com",
+                "password": "password123",
+                "role": "writer",
+                "first_name": "No",
+                "last_name": "Role",
+            },
         )
         assert resp.status_code == 201
         body = resp.get_json()
@@ -131,6 +137,10 @@ class TestRoleInference:
         resp = client.get("/api/v1/auth/me", headers=_auth(client, tokens["access_token"]))
         assert resp.status_code == 200
         body = resp.get_json()
+        assert body["display_name"] == "No Role"
+        assert body["first_name"] == "No"
+        assert body["last_name"] == "Role"
+        assert body["avatar_url"] is None
         assert body["is_writer"] is False
         assert body["is_reader"] is False
 
@@ -172,6 +182,32 @@ class TestRoleInference:
         )
         resp = client.get("/api/v1/auth/me", headers=_auth(client, rt))
         assert resp.get_json()["is_reader"] is True
+
+
+class TestRecentPosts:
+    def test_recent_is_public_masked_and_ordered(self, client):
+        _register(client, "rec-w1@test.com")
+        wt1 = _login(client, "rec-w1@test.com")["access_token"]
+        _register(client, "rec-w2@test.com")
+        wt2 = _login(client, "rec-w2@test.com")["access_token"]
+
+        _publish(client, wt1, "First Post", "PRE-1", "FULL-1")
+        _publish(client, wt2, "Second Post", "PRE-2", "FULL-2")
+
+        # No auth needed; always preview-masked with author info.
+        resp = client.get("/api/v1/posts/recent")
+        assert resp.status_code == 200
+        posts = resp.get_json()["posts"]
+        assert len(posts) == 2
+        assert posts[0]["title"] == "Second Post"
+        for p in posts:
+            assert p["subscriber_content"] is None
+            assert p["has_full_access"] is False
+            assert p["writer_name"] in ("rec-w1", "rec-w2")
+
+        # Limit is honored.
+        resp = client.get("/api/v1/posts/recent?limit=1")
+        assert len(resp.get_json()["posts"]) == 1
 
 
 class TestWebhookAndAudit:
